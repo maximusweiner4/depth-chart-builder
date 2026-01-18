@@ -157,7 +157,26 @@ export default async function handler(req, res) {
           }
         }
 
-        // If no profile link found, look for cell with name-like content
+        // If no profile link found, look for cell containing social media links (name is usually before "Twitter"/"Instagram")
+        if (!name) {
+          for (let c = 0; c < cells.length; c++) {
+            const fullCellText = cells.eq(c).text().trim();
+            // Check if cell contains social media references - the name is before them
+            if (/Twitter|Instagram|X Opens|Inflcr/i.test(fullCellText)) {
+              // Extract name - it's usually the first part before social media text
+              // Pattern: "FirstName LastName Twitter Opens..." or "FirstName LastName Jr. Twitter..."
+              const nameMatch = fullCellText.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+(?:\s+(?:Jr\.|Sr\.|II|III|IV))?)/);
+              if (nameMatch) {
+                name = nameMatch[1].trim();
+                nameIdx = c;
+                playerUrl = getCellLink(c);
+                break;
+              }
+            }
+          }
+        }
+
+        // If still no name, look for cell with name-like content
         if (!name) {
           for (let c = 0; c < cells.length; c++) {
             const cellText = cells.eq(c).text().trim().split('\n')[0].trim()
@@ -166,8 +185,10 @@ export default async function handler(req, res) {
             if (cellText && cellText.includes(' ') &&
                 !/^\d+$/.test(cellText) &&
                 !/^(QB|RB|WR|TE|OL|DL|LB|CB|S|K|P|LS|DE|DT|OT|OG|C|FB|ATH|DB|NT|Fr|So|Jr|Sr|Gr|Freshman|Sophomore|Junior|Senior|Graduate|Redshirt)\.?$/i.test(cellText) &&
+                !/^Redshirt\s+(Freshman|Sophomore|Junior|Senior)$/i.test(cellText) &&
                 !/^\d+-\d+$/.test(cellText) && // not height like 6-2
-                !/^\d+\s*lbs?$/i.test(cellText)) { // not weight
+                !/^\d+\s*lbs?$/i.test(cellText) && // not weight
+                !/^[A-Z][a-z]+,\s+[A-Z]/.test(cellText)) { // not location like "City, State"
               name = cellText;
               nameIdx = c;
               playerUrl = getCellLink(c);
