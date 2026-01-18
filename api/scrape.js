@@ -164,10 +164,16 @@ export default async function handler(req, res) {
             // Check if cell contains social media references - the name is before them
             if (/Twitter|Instagram|X Opens|Inflcr/i.test(fullCellText)) {
               // Extract name - it's usually the first part before social media text
-              // Pattern: "FirstName LastName Twitter Opens..." or "FirstName LastName Jr. Twitter..."
-              const nameMatch = fullCellText.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+(?:\s+(?:Jr\.|Sr\.|II|III|IV))?)/);
-              if (nameMatch) {
-                name = nameMatch[1].trim();
+              // First try to get just the name before any social media keywords
+              let extractedName = fullCellText
+                .replace(/\s*(Twitter|Instagram|Facebook|X Opens|Inflcr|Opens in a new window).*$/gi, '')
+                .trim();
+              // If the name looks valid (has first and last name, not a location)
+              if (extractedName &&
+                  /^[A-Z][a-z]+\s+[A-Z]/.test(extractedName) &&
+                  !/,/.test(extractedName) && // not a location like "City, State"
+                  !/\(/.test(extractedName)) { // not like "School (State)"
+                name = extractedName;
                 nameIdx = c;
                 playerUrl = getCellLink(c);
                 break;
