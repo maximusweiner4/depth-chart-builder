@@ -3,10 +3,8 @@
   "version": "1.0.0",
   "description": "College Football Depth Chart Builder",
   "type": "module",
-  "scripts": {
-    "dev": "vercel dev",
-    "build": "echo 'No build step needed'",
-    "start": "vercel dev"
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "cheerio": "^1.0.0-rc.12"
