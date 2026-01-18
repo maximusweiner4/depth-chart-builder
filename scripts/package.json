@@ -1,0 +1,12 @@
+{
+  "name": "generic-depth-chart",
+  "version": "1.0.0",
+  "description": "Generic college football depth chart builder - works with any school",
+  "scripts": {
+    "scrape": "node scrape-roster.js",
+    "update": "node update-html.js"
+  },
+  "dependencies": {
+    "puppeteer": "^21.6.0"
+  }
+}

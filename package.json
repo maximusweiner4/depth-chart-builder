@@ -1,0 +1,13 @@
+{
+  "name": "depth-chart-builder",
+  "version": "1.0.0",
+  "description": "College Football Depth Chart Builder",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'No build step needed'",
+    "start": "vercel dev"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.12"
+  }
+}

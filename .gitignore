@@ -1,0 +1,8 @@
+node_modules/
+scripts/node_modules/
+scripts/page-debug.html
+scripts/page-content.txt
+*.log
+.vercel
+.env
+.env.local

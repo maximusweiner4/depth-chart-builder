@@ -1,0 +1,1668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>College Football Depth Chart Builder</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            'display': ['Oswald', 'sans-serif'],
+            'body': ['Source Sans 3', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Source Sans 3', sans-serif;
+    }
+    .font-display {
+      font-family: 'Oswald', sans-serif;
+    }
+
+    /* Animations */
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0.7; }
+      to { opacity: 1; }
+    }
+    @keyframes savedPop {
+      0% { opacity: 0.7; }
+      100% { opacity: 1; }
+    }
+    .animate-spin { animation: spin 1s linear infinite; }
+    .animate-fadeIn { animation: fadeIn 0.15s ease-out forwards; }
+    .animate-savedPop { animation: savedPop 0.2s ease-out; }
+
+    /* Loading skeleton */
+    .skeleton {
+      background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+    }
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    .dark .skeleton {
+      background: linear-gradient(90deg, #374151 25%, #4B5563 50%, #374151 75%);
+      background-size: 200% 100%;
+    }
+
+    /* Drag and drop styles */
+    .dragging { opacity: 0.5; transform: scale(1.05); }
+    .drag-over { box-shadow: 0 0 0 3px #FCD34D; }
+
+    /* Tooltip styles */
+    .tooltip { position: relative; }
+    .tooltip::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+      z-index: 100;
+      margin-bottom: 8px;
+    }
+    .tooltip:hover::after { opacity: 1; }
+
+    /* Print styles */
+    @media print {
+      .no-print { display: none !important; }
+      body { background: white !important; }
+    }
+
+    /* Field lines */
+    .field-lines {
+      background-image:
+        repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent calc(10% - 1px),
+          rgba(255,255,255,0.15) calc(10% - 1px),
+          rgba(255,255,255,0.15) 10%
+        );
+    }
+
+    /* Position card hover */
+    .position-card {
+      transition: box-shadow 0.15s ease, z-index 0s;
+    }
+    .position-card:hover {
+      z-index: 10;
+    }
+    .position-card:hover .position-card-inner {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: var(--primary-color, #1a1a2e); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--primary-light, #2a2a4e); }
+
+    /* Mobile responsive */
+    @media (max-width: 768px) {
+      .field-container { min-height: auto; padding: 1rem; }
+      .position-card-inner {
+        min-width: 56px !important;
+        font-size: 9px;
+      }
+    }
+
+    @media (max-width: 640px) and (orientation: portrait) {
+      .field-view { display: none; }
+      .mobile-list-view { display: block !important; }
+    }
+
+    .mobile-list-view { display: none; }
+  </style>
+</head>
+<body class="min-h-screen transition-colors duration-300">
+  <div id="app"></div>
+
+  <script>
+    // Position definitions
+    const POSITIONS = {
+      offense: [
+        { code: 'WR-X', name: 'X', fullName: 'Split End (X Receiver)', depth: 3, x: 5, y: 45 },
+        { code: 'OT', name: 'LT', fullName: 'Left Tackle', depth: 4, x: 30, y: 45 },
+        { code: 'OG', name: 'LG', fullName: 'Left Guard', depth: 4, x: 40, y: 48 },
+        { code: 'C', name: 'C', fullName: 'Center', depth: 3, x: 50, y: 50 },
+        { code: 'OG', name: 'RG', fullName: 'Right Guard', depth: 4, x: 60, y: 48, isRight: true },
+        { code: 'OT', name: 'RT', fullName: 'Right Tackle', depth: 4, x: 70, y: 45, isRight: true },
+        { code: 'TE', name: 'TE', fullName: 'Tight End', depth: 2, x: 78, y: 48 },
+        { code: 'WR-SLOT', name: 'Slot', fullName: 'Slot Receiver', depth: 3, x: 85, y: 45 },
+        { code: 'WR-Z', name: 'Z', fullName: 'Flanker (Z Receiver)', depth: 3, x: 95, y: 45 },
+        { code: 'QB', name: 'QB', fullName: 'Quarterback', depth: 2, x: 50, y: 65 },
+        { code: 'RB', name: 'RB', fullName: 'Running Back', depth: 3, x: 50, y: 80 }
+      ],
+      defense: [
+        { code: 'CB-X', name: 'CB', fullName: 'Cornerback (X Side)', depth: 3, x: 5, y: 40 },
+        { code: 'DE-1', name: 'DE', fullName: 'Defensive End (Left)', depth: 3, x: 35, y: 40 },
+        { code: 'DT-1', name: 'DT', fullName: 'Defensive Tackle (Left)', depth: 3, x: 45, y: 42 },
+        { code: 'DT-2', name: 'DT', fullName: 'Defensive Tackle (Right)', depth: 3, x: 55, y: 42 },
+        { code: 'DE-2', name: 'DE', fullName: 'Defensive End (Right)', depth: 3, x: 65, y: 40 },
+        { code: 'CB-SLOT', name: 'NCB', fullName: 'Nickel Cornerback (Slot)', depth: 3, x: 75, y: 40 },
+        { code: 'CB-Y', name: 'CB', fullName: 'Cornerback (Y Side)', depth: 3, x: 95, y: 40 },
+        { code: 'LB-OLB', name: 'OLB', fullName: 'Outside Linebacker (Left)', depth: 4, x: 30, y: 55 },
+        { code: 'LB-ILB', name: 'ILB', fullName: 'Inside Linebacker', depth: 4, x: 50, y: 58 },
+        { code: 'LB-OLB', name: 'OLB', fullName: 'Outside Linebacker (Right)', depth: 4, x: 70, y: 55, isRight: true },
+        { code: 'S-FS', name: 'FS', fullName: 'Free Safety', depth: 3, x: 40, y: 75 },
+        { code: 'S-SS', name: 'SS', fullName: 'Strong Safety', depth: 3, x: 60, y: 75 }
+      ],
+      special: [
+        { code: 'K', name: 'K', fullName: 'Placekicker', depth: 2, x: 50, y: 50 },
+        { code: 'P', name: 'P', fullName: 'Punter', depth: 2, x: 50, y: 65 },
+        { code: 'LS', name: 'LS', fullName: 'Long Snapper', depth: 2, x: 50, y: 35 }
+      ]
+    };
+
+    // Default empty roster - will be populated by scraper
+    const DEFAULT_ROSTER = [
+      { name: 'Sonny Styles', number: 0, position: 'LB', year: 'Unknown', height: '', weight: '243 lbs', hometown: 'Pickerington, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/sonny-styles/4455' },
+      { name: 'Davison Igbinosun', number: 1, position: 'CB', year: 'Unknown', height: '', weight: '195 lbs', hometown: 'Union, N.J.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/davison-igbinosun/12270' },
+      { name: 'Brandon Inniss', number: 1, position: 'WR', year: 'Unknown', height: '', weight: '199 lbs', hometown: 'Hollywood, Fla.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/brandon-inniss/12271' },
+      { name: 'Caleb Downs', number: 2, position: 'Unknown', year: 'Unknown', height: '', weight: '205 lbs', hometown: 'Hoschton, Ga.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/caleb-downs/12257' },
+      { name: 'Lincoln Kienholz', number: 3, position: 'QB', year: 'Unknown', height: '', weight: '214 lbs', hometown: 'Pierre, S.D.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/lincoln-kienholz/12275' },
+      { name: 'Lorenzo Styles Jr.', number: 3, position: 'CB', year: 'Gr', height: '', weight: '195 lbs', hometown: 'Pickerington, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/lorenzo-styles-jr/12316' },
+      { name: 'Jeremiah Smith', number: 4, position: 'WR', year: 'Unknown', height: '', weight: '223 lbs', hometown: 'Miami Gardens, Fla.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/jeremiah-smith/12311' },
+      { name: 'Mylan Graham', number: 5, position: 'WR', year: 'Unknown', height: '', weight: '195 lbs', hometown: 'Fort Wayne, Ind.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/mylan-graham/12263' },
+      { name: 'Aaron Scott Jr.', number: 5, position: 'CB', year: 'Unknown', height: '', weight: '195 lbs', hometown: 'Springfield, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/aaron-scott-jr/12308' },
+      { name: 'Eli Brickhandler', number: 6, position: 'QB', year: 'Gr', height: '', weight: '211 lbs', hometown: 'Stockton, Calif.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/eli-brickhandler/12550' },
+      { name: 'Devin Sanchez', number: 6, position: 'CB', year: 'Unknown', height: '', weight: '198 lbs', hometown: 'Houston, Texas', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/devin-sanchez/12330' },
+      { name: 'Phillip Bell', number: 7, position: 'WR', year: 'Unknown', height: '', weight: '200 lbs', hometown: 'Mission Viejo, CA', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/phillip-bell/12331' },
+      { name: 'Jermaine Mathews Jr.', number: 7, position: 'CB', year: 'Unknown', height: '', weight: '190 lbs', hometown: '', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/jermaine-mathews-jr/12283' },
+      { name: 'De’Zie Jones', number: 8, position: 'WR', year: 'Unknown', height: '', weight: '187 lbs', hometown: 'Wayne, NJ', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/dezie-jones/12332' },
+      { name: 'Arvell Reese', number: 8, position: 'LB', year: 'Unknown', height: '', weight: '243 lbs', hometown: 'Cleveland, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/arvell-reese/12300' },
+      { name: 'Malik Hartford', number: 9, position: 'Unknown', year: 'Unknown', height: '', weight: '200 lbs', hometown: 'West Chester, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/malik-hartford/12265' },
+      { name: 'Tavien St. Clair', number: 9, position: 'QB', year: 'Unknown', height: '', weight: '230 lbs', hometown: 'Bellefontaine, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/tavien-st-clair/12333' },
+      { name: 'Faheem Delane', number: 10, position: 'Unknown', year: 'Unknown', height: '', weight: '210 lbs', hometown: 'Good Hope, MD', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/faheem-delane/12334' },
+      { name: 'Julian Sayin', number: 10, position: 'QB', year: 'Unknown', height: '', weight: '208 lbs', hometown: 'Carlsbad, Calif.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/julian-sayin/12306' },
+      { name: 'C.J. Hicks', number: 11, position: 'DT', year: 'Unknown', height: '', weight: '243 lbs', hometown: 'Dayton, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/cj-hicks/12267' },
+      { name: 'Quincy Porter', number: 11, position: 'WR', year: 'Unknown', height: '', weight: '210 lbs', hometown: 'New Milford, N.J.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/quincy-porter/12335' },
+      { name: 'CJ Donaldson', number: 12, position: 'RB', year: 'Unknown', height: '', weight: '232 lbs', hometown: 'Miami, Fla.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/cj-donaldson/12349' },
+      { name: 'Bryce West', number: 12, position: 'CB', year: 'Unknown', height: '', weight: '197 lbs', hometown: 'Cleveland, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/bryce-west/12324' },
+      { name: 'Miles Lockhart', number: 13, position: 'CB', year: 'Unknown', height: '', weight: '197 lbs', hometown: 'Chandler, Ariz.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/miles-lockhart/12278' },
+      { name: 'Bryson Rodgers', number: 13, position: 'WR', year: 'Unknown', height: '', weight: '192 lbs', hometown: 'Tampa, Fla.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/bryson-rodgers/12303' },
+      { name: 'Beau Atkinson', number: 14, position: 'DT', year: 'Unknown', height: '', weight: '258 lbs', hometown: 'Raleigh, N.C.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/beau-atkinson/12551' },
+      { name: 'Trey Robinette', number: 14, position: 'QB', year: 'Unknown', height: '', weight: '189 lbs', hometown: 'Washington Court House, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/trey-robinette/12552' },
+      { name: 'Zion Grady', number: 15, position: 'DT', year: 'Unknown', height: '', weight: '258 lbs', hometown: 'Enterprise, Ala.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/zion-grady/12336' },
+      { name: 'Jelani Thurman', number: 15, position: 'TE', year: 'Unknown', height: '', weight: '250 lbs', hometown: 'Fairburn, Ga.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/jelani-thurman/12318' },
+      { name: 'Mason Maggs', number: 16, position: 'QB', year: 'Unknown', height: '', weight: '226 lbs', hometown: 'Dublin, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/mason-maggs/12281' },
+      { name: 'Keenan Nelson Jr.', number: 16, position: 'CB', year: 'Unknown', height: '', weight: '205 lbs', hometown: '', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/keenan-nelson-jr/12294' },
+      { name: 'Tarvos "TJ" Alford', number: 17, position: 'LB', year: 'Unknown', height: '', weight: '233 lbs', hometown: 'Port Saint Lucie, Fla.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/tarvos-tj-alford/12337' },
+      { name: 'Carnell Tate', number: 17, position: 'WR', year: 'Unknown', height: '', weight: '195 lbs', hometown: '', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/carnell-tate/12317' },
+      { name: 'Jaylen McClain', number: 18, position: 'Unknown', year: 'Unknown', height: '', weight: '201 lbs', hometown: 'Rahway, N.J.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/jaylen-mcclain/12284' },
+      { name: 'Bodpegn Miller', number: 18, position: 'WR', year: 'Unknown', height: '', weight: '196 lbs', hometown: 'Mansfield, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/bodpegn-miller/12338' },
+      { name: 'Nick McLarty', number: 19, position: 'P', year: 'Unknown', height: '', weight: '255 lbs', hometown: 'Melbourne, Australia', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/nick-mclarty/12287' },
+      { name: 'Jordyn Woods', number: 19, position: 'CB', year: 'Unknown', height: '', weight: '193 lbs', hometown: 'Cartersville, Ga.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/jordyn-woods/12553' },
+      { name: 'James Peoples', number: 20, position: 'RB', year: 'Unknown', height: '', weight: '206 lbs', hometown: 'San Antonio, Texas', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/james-peoples/12297' },
+      { name: 'Riley Pettijohn', number: 20, position: 'LB', year: 'Unknown', height: '', weight: '231 lbs', hometown: 'McKinney, Texas', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/riley-pettijohn/12339' },
+      { name: 'Brenten "Inky" Jones', number: 21, position: 'LB', year: 'Unknown', height: '', weight: '210 lbs', hometown: 'Steubenville, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/brenten-inky-jones/12273' },
+      { name: 'Anthony “Turbo” Rogers', number: 21, position: 'RB', year: 'Unknown', height: '', weight: '198 lbs', hometown: 'Montgomery, Ala.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/anthony-turbo-rogers/12554' },
+      { name: 'Nolan Baudo', number: 23, position: 'WR', year: 'Unknown', height: '', weight: '180 lbs', hometown: 'Chicago, Ill.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/nolan-baudo/12252' },
+      { name: 'Garrett Stover', number: 23, position: 'LB', year: 'Unknown', height: '', weight: '228 lbs', hometown: 'Sunbury, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/garrett-stover/12314' },
+      { name: 'Sam Dixon', number: 24, position: 'RB', year: 'Unknown', height: '', weight: '206 lbs', hometown: 'Pickerington, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/sam-dixon/12326' },
+      { name: 'Deshawn Stewart', number: 24, position: 'Unknown', year: 'Unknown', height: '', weight: '199 lbs', hometown: 'Wayne, N.J.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/deshawn-stewart/12340' },
+      { name: 'Ty Howard', number: 25, position: 'LB', year: 'Unknown', height: '', weight: '200 lbs', hometown: '', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/ty-howard/12350' },
+      { name: 'Bo Jackson', number: 25, position: 'RB', year: 'Unknown', height: '', weight: '217 lbs', hometown: 'Cleveland, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/bo-jackson/12351' },
+      { name: 'Payton Pierce', number: 26, position: 'LB', year: 'Unknown', height: '', weight: '223 lbs', hometown: 'Lucas, Texas', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/payton-pierce/12298' },
+      { name: 'Kolton Stover', number: 26, position: 'QB', year: 'Unknown', height: '', weight: '198 lbs', hometown: 'Centerburg, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/kolton-stover/12555' },
+      { name: 'Stanley Jackson Jr.', number: 28, position: 'RB', year: 'Unknown', height: '', weight: '218 lbs', hometown: 'Westerville, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/stanley-jackson-jr/12556' },
+      { name: 'Leroy Roker III', number: 28, position: 'Unknown', year: 'Unknown', height: '', weight: '197 lbs', hometown: 'Fort Myers, Fla.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/leroy-roker-iii/12304' },
+      { name: 'Glorien Gough', number: 29, position: 'CB', year: 'Unknown', height: '', weight: '197 lbs', hometown: 'Palos Verdes Estates, Calif.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/glorien-gough/12262' },
+      { name: 'Cody Haddad', number: 30, position: 'Unknown', year: 'Unknown', height: '', weight: '186 lbs', hometown: 'Cleveland, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/cody-haddad/12342' },
+      { name: 'Preston Wolfe', number: 30, position: 'WR', year: 'Unknown', height: '', weight: '170 lbs', hometown: '', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/preston-wolfe/12557' },
+      { name: 'JJ Sebert', number: 32, position: 'Unknown', year: 'Unknown', height: '', weight: '190 lbs', hometown: 'Pickerington, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/jj-sebert/12558' },
+      { name: 'Isaiah West', number: 32, position: 'RB', year: 'Unknown', height: '', weight: '210 lbs', hometown: 'Philadelphia, Pa.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/isaiah-west/12356' },
+      { name: 'Eli Lee', number: 33, position: 'LB', year: 'Unknown', height: '', weight: '227 lbs', hometown: 'Akron, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/eli-lee/12341' },
+      { name: 'Bukari Miles Jr.', number: 34, position: 'CB', year: 'Unknown', height: '', weight: '192 lbs', hometown: 'West Chester, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/bukari-miles-jr/12290' },
+      { name: 'Brennen Schramm', number: 34, position: 'WR', year: 'Unknown', height: '', weight: '190 lbs', hometown: 'Medina, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/brennen-schramm/12307' },
+      { name: 'Jaystin Gwinn', number: 35, position: 'Unknown', year: 'Unknown', height: '', weight: '206 lbs', hometown: 'Westerville, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/jaystin-gwinn/12559' },
+      { name: 'Collin Johnson', number: 35, position: 'LS', year: 'Unknown', height: '', weight: '222 lbs', hometown: 'New Albany, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/collin-johnson/12560' },
+      { name: 'Zach Hayes', number: 37, position: 'LB', year: 'Unknown', height: '', weight: '222 lbs', hometown: 'LaGrange Park, Ill.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/zach-hayes/12266' },
+      { name: 'Jayden Fielding', number: 38, position: 'K', year: 'Unknown', height: '', weight: '175 lbs', hometown: 'League City, Texas', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/jayden-fielding/12260' },
+      { name: 'Eli Riggs', number: 38, position: 'LB', year: 'Unknown', height: '', weight: '229 lbs', hometown: '', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/eli-riggs/12302' },
+      { name: 'Joey Velazquez', number: 39, position: 'LB', year: 'Gr', height: '', weight: '225 lbs', hometown: 'Columbus, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/joey-velazquez/12322' },
+      { name: 'Grant Mills', number: 41, position: 'LS', year: 'Unknown', height: '', weight: '223 lbs', hometown: 'Mooresville, N.C.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/grant-mills/12562' },
+      { name: 'Joe McGuire', number: 42, position: 'P', year: 'Unknown', height: '', weight: '210 lbs', hometown: 'Melbourne, Australia', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/joe-mcguire/12286' },
+      { name: 'John Ferlmann', number: 43, position: 'LS', year: 'Gr', height: '', weight: '232 lbs', hometown: 'Phoenix, Ariz.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/john-ferlmann/12259' },
+      { name: 'Dianté Griffin', number: 43, position: 'CB', year: 'Sr.', height: '', weight: '187 lbs', hometown: 'Lima, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/diant-griffin/12264' },
+      { name: 'Epi Sitanilei', number: 44, position: 'DE', year: 'Unknown', height: '', weight: '239 lbs', hometown: 'Ontario, Calif.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/epi-sitanilei/12563' },
+      { name: 'Ryan Rudzinski', number: 46, position: 'Unknown', year: 'Unknown', height: '', weight: '214 lbs', hometown: 'Columbus, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/ryan-rudzinski/12305' },
+      { name: 'Logan George', number: 48, position: 'DT', year: 'Unknown', height: '', weight: '260 lbs', hometown: 'Pocatello, Idaho', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/logan-george/12352' },
+      { name: 'Gavin Thobe', number: 49, position: 'Unknown', year: 'Unknown', height: '', weight: '190 lbs', hometown: 'Bellbrook, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/gavin-thobe/12564' },
+      { name: 'Alec DelSignore', number: 50, position: 'LB', year: 'Unknown', height: '', weight: '225 lbs', hometown: 'Youngstown, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/alec-delsignore/12256' },
+      { name: 'Luke Montgomery', number: 51, position: 'OL', year: 'Unknown', height: '', weight: '312 lbs', hometown: 'Findlay, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/luke-montgomery/12291' },
+      { name: 'Joshua Mickens', number: 52, position: 'DE', year: 'Unknown', height: '', weight: '250 lbs', hometown: 'Indianapolis, Ind.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/joshua-mickens/12289' },
+      { name: 'Will Smith Jr.', number: 53, position: 'DT', year: 'Unknown', height: '', weight: '292 lbs', hometown: 'Dublin, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/will-smith-jr/12312' },
+      { name: 'Dylan Furshman', number: 54, position: 'LB', year: 'Unknown', height: '', weight: '210 lbs', hometown: 'Jupiter, Fla.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/dylan-furshman/12565' },
+      { name: 'Dominic Kirks', number: 55, position: 'DE', year: 'Unknown', height: '', weight: '267 lbs', hometown: 'Cleveland, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/dominic-kirks/12276' },
+      { name: 'Isaiah Kema', number: 56, position: 'OL', year: 'Unknown', height: '', weight: '312 lbs', hometown: 'Lubbock, Texas', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/isaiah-kema/12566' },
+      { name: 'Ian Gecse', number: 57, position: 'OL', year: 'Unknown', height: '', weight: '260 lbs', hometown: 'Grandview Heights, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/ian-gecse/12567' },
+      { name: 'Gabe VanSickle', number: 58, position: 'OL', year: 'Unknown', height: '', weight: '316 lbs', hometown: 'Coopersville, Mich.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/gabe-vansickle/12321' },
+      { name: 'Ahmed Tounkara', number: 59, position: 'DT', year: 'Unknown', height: '', weight: '280 lbs', hometown: 'Dublin, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/ahmed-tounkara/12319' },
+      { name: 'Joshua Padilla', number: 62, position: 'OL', year: 'Unknown', height: '', weight: '300 lbs', hometown: 'Huber Heights, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/joshua-padilla/12296' },
+      { name: 'Julian Goines-Jackson', number: 63, position: 'OL', year: 'Unknown', height: '', weight: '315 lbs', hometown: 'Zanesville, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/julian-goinesjackson/12261' },
+      { name: 'Simon Lorentz', number: 64, position: 'OL', year: 'Unknown', height: '', weight: '285 lbs', hometown: 'Dover, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/simon-lorentz/12280' },
+      { name: 'Justin Terry', number: 65, position: 'OL', year: 'Unknown', height: '', weight: '324 lbs', hometown: '', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/justin-terry/12568' },
+      { name: 'Austin Siereveld', number: 67, position: 'OL', year: 'Unknown', height: '', weight: '325 lbs', hometown: 'Liberty Township, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/austin-siereveld/12310' },
+      { name: 'Ian Moore', number: 69, position: 'OL', year: 'Unknown', height: '', weight: '312 lbs', hometown: 'New Palestine, Ind.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/ian-moore/12292' },
+      { name: 'Phillip Daniels', number: 70, position: 'OL', year: 'Unknown', height: '', weight: '315 lbs', hometown: '', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/phillip-daniels/12353' },
+      { name: 'Jayvon McFadden', number: 71, position: 'OL', year: 'Unknown', height: '', weight: '295 lbs', hometown: 'Upper Marlboro, Md.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/jayvon-mcfadden/12343' },
+      { name: 'Deontae Armstrong', number: 72, position: 'OL', year: 'Unknown', height: '', weight: '305 lbs', hometown: 'Elyria, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/deontae-armstrong/12250' },
+      { name: 'Devontae Armstrong', number: 73, position: 'OL', year: 'Unknown', height: '', weight: '314 lbs', hometown: 'Elyria, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/devontae-armstrong/12251' },
+      { name: 'Carter Lowe', number: 74, position: 'OL', year: 'Unknown', height: '', weight: '313 lbs', hometown: 'Toledo, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/carter-lowe/12344' },
+      { name: 'Carson Hinzman', number: 75, position: 'OL', year: 'Unknown', height: '', weight: '300 lbs', hometown: 'Spring Valley, Wis.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/carson-hinzman/12268' },
+      { name: 'Jake Cook', number: 76, position: 'OL', year: 'Unknown', height: '', weight: '306 lbs', hometown: 'Westerville, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/jake-cook/12345' },
+      { name: 'Tegra Tshabola', number: 77, position: 'OL', year: 'Unknown', height: '', weight: '322 lbs', hometown: 'West Chester, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/tegra-tshabola/12320' },
+      { name: 'Ethan Onianwa', number: 78, position: 'OL', year: 'Unknown', height: '', weight: '331 lbs', hometown: 'Katy, Texas', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/ethan-onianwa/12354' },
+      { name: 'Shawn Lodge', number: 80, position: 'WR', year: 'Unknown', height: '', weight: '182 lbs', hometown: 'Akron, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/shawn-lodge/12279' },
+      { name: 'Damarion Witten', number: 81, position: 'WR', year: 'Unknown', height: '', weight: '206 lbs', hometown: '', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/damarion-witten/12327' },
+      { name: 'David Adolph', number: 82, position: 'WR', year: 'Unknown', height: '', weight: '210 lbs', hometown: 'Dublin, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/david-adolph/12248' },
+      { name: 'Nate Roberts', number: 83, position: 'TE', year: 'Unknown', height: '', weight: '240 lbs', hometown: 'Washington, OK', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/nate-roberts/12346' },
+      { name: 'Dorian Williams', number: 84, position: 'WR', year: 'Unknown', height: '', weight: '213 lbs', hometown: '', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/dorian-williams/12325' },
+      { name: 'Bennett Christian', number: 85, position: 'TE', year: 'Unknown', height: '', weight: '250 lbs', hometown: 'Acworth, Ga.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/bennett-christian/12254' },
+      { name: 'Max Klare', number: 86, position: 'TE', year: 'Unknown', height: '', weight: '243 lbs', hometown: 'Guilford, Ind.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/max-klare/12358' },
+      { name: 'Brody Lennon', number: 87, position: 'TE', year: 'Unknown', height: '', weight: '230 lbs', hometown: '', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/brody-lennon/12569' },
+      { name: 'Maxence LeBlanc', number: 88, position: 'TE', year: 'Unknown', height: '', weight: '242 lbs', hometown: 'St-Bruno, Quebec', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/maxence-leblanc/12277' },
+      { name: 'Trajen Odom', number: 88, position: 'DT', year: 'Unknown', height: '', weight: '295 lbs', hometown: 'Inglewood, Calif.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/trajen-odom/12347' },
+      { name: 'Will Kacmarek', number: 89, position: 'TE', year: 'Gr', height: '', weight: '258 lbs', hometown: '', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/will-kacmarek/12274' },
+      { name: 'Eric Mensah', number: 90, position: 'DT', year: 'Unknown', height: '', weight: '302 lbs', hometown: 'Stafford, Va.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/eric-mensah/12288' },
+      { name: 'Jarquez Carter', number: 91, position: 'DT', year: 'Unknown', height: '', weight: '288 lbs', hometown: 'Newberry, FL', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/jarquez-carter/12348' },
+      { name: 'Caden Curry', number: 92, position: 'DE', year: 'Unknown', height: '', weight: '260 lbs', hometown: 'Greenwood, Ind.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/caden-curry/12255' },
+      { name: 'Maxwell Roy', number: 93, position: 'DT', year: 'Unknown', height: '', weight: '301 lbs', hometown: 'Philadelphia, Pa.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/maxwell-roy/12570' },
+      { name: 'Jason Moore', number: 94, position: 'DT', year: 'Unknown', height: '', weight: '303 lbs', hometown: 'Ft. Washington, Md.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/jason-moore/12293' },
+      { name: 'Tywone Malone Jr.', number: 95, position: 'DT', year: 'Gr', height: '', weight: '309 lbs', hometown: 'Jamesburg, N.J.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/tywone-malone-jr/12282' },
+      { name: 'Jackson Courville', number: 96, position: 'K', year: 'Unknown', height: '', weight: '185 lbs', hometown: 'Centerville, Ohio', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/jackson-courville/12571' },
+      { name: 'Eddrick Houston', number: 96, position: 'DE', year: 'Unknown', height: '', weight: '292 lbs', hometown: 'Atlanta, Ga.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/eddrick-houston/12269' },
+      { name: 'Kenyatta Jackson Jr.', number: 97, position: 'DE', year: 'Unknown', height: '', weight: '265 lbs', hometown: 'Miami Gardens, Fla.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/kenyatta-jackson-jr/12272' },
+      { name: 'Kayden McDonald', number: 98, position: 'DT', year: 'Unknown', height: '', weight: '326 lbs', hometown: 'Suwanee, Ga.', highSchool: '', previousSchool: '', url: 'https://ohiostatebuckeyes.com/sports/football/roster/kayden-mcdonald/12285' }
+    ];
+
+    // Default team config
+    const DEFAULT_TEAM = {
+      name: 'Ohio State',
+      primaryColor: '#041E42',
+      secondaryColor: '#FFFFFF',
+      rosterUrl: 'https://ohiostatebuckeyes.com/sports/football/roster'
+    };
+
+    class DepthChartApp {
+      constructor() {
+        this.depthChart = {};
+        this.roster = DEFAULT_ROSTER;
+        this.team = DEFAULT_TEAM;
+        this.activeTab = 'offense';
+        this.depthLevel = 0;
+        this.selectedSlot = null;
+        this.showPlayerModal = false;
+        this.showImportModal = false;
+        this.showResetModal = false;
+        this.showSetupModal = false;
+        this.showTeamSettingsModal = false;
+        this.showAppResetModal = false;
+        this.fetchingRoster = false;
+        this.importText = '';
+        this.importMessage = '';
+        this.searchQuery = '';
+        this.saving = false;
+        this.loading = true;
+        this.darkMode = false;
+        this.showOnboarding = false;
+        this.draggedPlayer = null;
+        this.dragOverPosition = null;
+
+        this.undoStack = [];
+        this.redoStack = [];
+        this.maxUndoSteps = 20;
+        this.lastSaved = null;
+
+        this.init();
+      }
+
+      init() {
+        this.render();
+
+        setTimeout(() => {
+          this.loadDarkMode();
+          this.loadTeam();
+          this.loadDepthChart();
+          this.loadRoster();
+          this.checkOnboarding();
+          this.loading = false;
+          this.applyTeamColors();
+          this.render();
+          this.setupKeyboardShortcuts();
+        }, 500);
+      }
+
+      loadTeam() {
+        const saved = localStorage.getItem('generic-team-config');
+        if (saved) {
+          const savedTeam = JSON.parse(saved);
+          // Check if the team has changed (new scrape)
+          if (savedTeam.name !== DEFAULT_TEAM.name || savedTeam.rosterUrl !== DEFAULT_TEAM.rosterUrl) {
+            // Team changed - clear old data and use new defaults
+            console.log(`Team changed from ${savedTeam.name} to ${DEFAULT_TEAM.name}, resetting data...`);
+            localStorage.removeItem('generic-team-config');
+            localStorage.removeItem('generic-roster');
+            localStorage.removeItem('generic-depth-chart');
+            this.team = { ...DEFAULT_TEAM };
+            this.roster = [...DEFAULT_ROSTER];
+            this.initializeEmptyChart();
+            return;
+          }
+          this.team = { ...DEFAULT_TEAM, ...savedTeam };
+        }
+      }
+
+      saveTeam() {
+        localStorage.setItem('generic-team-config', JSON.stringify(this.team));
+        this.applyTeamColors();
+      }
+
+      applyTeamColors() {
+        document.documentElement.style.setProperty('--primary-color', this.team.primaryColor);
+        document.body.style.background = `linear-gradient(135deg, ${this.team.primaryColor} 0%, ${this.adjustColor(this.team.primaryColor, 30)} 50%, ${this.team.primaryColor} 100%)`;
+      }
+
+      adjustColor(color, amount) {
+        // Simple color lightening
+        const hex = color.replace('#', '');
+        const r = Math.min(255, parseInt(hex.substr(0, 2), 16) + amount);
+        const g = Math.min(255, parseInt(hex.substr(2, 2), 16) + amount);
+        const b = Math.min(255, parseInt(hex.substr(4, 2), 16) + amount);
+        return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+      }
+
+      loadDarkMode() {
+        const saved = localStorage.getItem('generic-dark-mode');
+        if (saved !== null) {
+          this.darkMode = JSON.parse(saved);
+        } else {
+          this.darkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        }
+        this.applyDarkMode();
+      }
+
+      applyDarkMode() {
+        if (this.darkMode) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      }
+
+      toggleDarkMode() {
+        this.darkMode = !this.darkMode;
+        localStorage.setItem('generic-dark-mode', JSON.stringify(this.darkMode));
+        this.applyDarkMode();
+        this.render();
+      }
+
+      loadDepthChart() {
+        const saved = localStorage.getItem('generic-depth-chart');
+        if (saved) {
+          this.depthChart = JSON.parse(saved);
+        } else {
+          this.initializeEmptyChart();
+        }
+      }
+
+      loadRoster() {
+        const saved = localStorage.getItem('generic-roster');
+        if (saved) {
+          this.roster = JSON.parse(saved);
+        }
+      }
+
+      checkOnboarding() {
+        const hasSeenOnboarding = localStorage.getItem('generic-onboarding-seen');
+        const hasRoster = this.roster.length > 0;
+        this.showOnboarding = !hasSeenOnboarding && !hasRoster;
+        this.showSetupModal = !hasRoster && !this.showOnboarding;
+      }
+
+      dismissOnboarding() {
+        this.showOnboarding = false;
+        localStorage.setItem('generic-onboarding-seen', 'true');
+        if (this.roster.length === 0) {
+          this.showSetupModal = true;
+        }
+        this.render();
+      }
+
+      initializeEmptyChart() {
+        Object.values(POSITIONS).flat().forEach(pos => {
+          const key = pos.isRight ? `${pos.code}-R` : pos.code;
+          this.depthChart[key] = Array(pos.depth).fill(null);
+        });
+      }
+
+      saveStateForUndo() {
+        this.undoStack.push(JSON.stringify(this.depthChart));
+        if (this.undoStack.length > this.maxUndoSteps) {
+          this.undoStack.shift();
+        }
+        this.redoStack = [];
+      }
+
+      undo() {
+        if (this.undoStack.length > 0) {
+          this.redoStack.push(JSON.stringify(this.depthChart));
+          this.depthChart = JSON.parse(this.undoStack.pop());
+          this.autoSave();
+          this.render();
+        }
+      }
+
+      redo() {
+        if (this.redoStack.length > 0) {
+          this.undoStack.push(JSON.stringify(this.depthChart));
+          this.depthChart = JSON.parse(this.redoStack.pop());
+          this.autoSave();
+          this.render();
+        }
+      }
+
+      autoSave() {
+        localStorage.setItem('generic-depth-chart', JSON.stringify(this.depthChart));
+        this.lastSaved = new Date();
+        this.saving = true;
+        this.render();
+        setTimeout(() => {
+          this.saving = false;
+          this.render();
+        }, 1500);
+      }
+
+      exportDepthChart() {
+        let text = `${this.team.name.toUpperCase()} FOOTBALL DEPTH CHART\n${'='.repeat(this.team.name.length + 21)}\n`;
+        text += `Generated: ${new Date().toLocaleDateString()}\n\n`;
+
+        const sections = {
+          'OFFENSE': ['QB', 'RB', 'WR-X', 'WR-Z', 'WR-SLOT', 'TE', 'OT', 'OT-R', 'OG', 'OG-R', 'C'],
+          'DEFENSE': ['DE-1', 'DE-2', 'DT-1', 'DT-2', 'LB-ILB', 'LB-OLB', 'LB-OLB-R', 'CB-X', 'CB-Y', 'CB-SLOT', 'S-FS', 'S-SS'],
+          'SPECIAL TEAMS': ['K', 'P', 'LS']
+        };
+
+        for (const [section, positions] of Object.entries(sections)) {
+          text += `${section}\n${'-'.repeat(section.length)}\n\n`;
+
+          for (const pos of positions) {
+            const players = this.depthChart[pos] || [];
+            const filled = players.filter(p => p !== null);
+
+            if (filled.length > 0) {
+              const posLabel = pos.replace('-R', ' (Right)').replace('-', ' ');
+              text += `${posLabel}:\n`;
+              filled.forEach((p, i) => {
+                text += `  ${i + 1}. #${p.number} ${p.name} (${p.year})\n`;
+              });
+              text += '\n';
+            }
+          }
+          text += '\n';
+        }
+
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${this.team.name.toLowerCase().replace(/\s+/g, '-')}-depth-chart-${new Date().toISOString().split('T')[0]}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      showResetConfirmation() {
+        this.showResetModal = true;
+        this.render();
+      }
+
+      confirmReset() {
+        this.saveStateForUndo();
+        this.initializeEmptyChart();
+        this.autoSave();
+        this.showResetModal = false;
+        this.render();
+      }
+
+      resetApp() {
+        this.showTeamSettingsModal = false;
+        this.showAppResetModal = true;
+        this.render();
+      }
+
+      confirmAppReset() {
+        // Clear all localStorage data for this app
+        localStorage.removeItem('generic-team-config');
+        localStorage.removeItem('generic-roster');
+        localStorage.removeItem('generic-depth-chart');
+        localStorage.removeItem('generic-onboarding-seen');
+        localStorage.removeItem('generic-dark-mode');
+
+        // Reset app state directly
+        this.roster = [];
+        this.team = { name: 'Your Team', primaryColor: '#1a1a2e', secondaryColor: '#ffffff', rosterUrl: '' };
+        this.depthChart = {};
+        this.initializeEmptyChart();
+        this.showAppResetModal = false;
+        this.showSetupModal = true;
+        this.showOnboarding = false;
+        this.applyTeamColors();
+        this.render();
+      }
+
+      importRoster() {
+        try {
+          const lines = this.importText.split('\n').filter(line => line.trim());
+          const newRoster = [];
+
+          for (const line of lines) {
+            const commaFormat = line.match(/(\d+),?\s*([^,]+),?\s*([A-Z]{1,3}),?\s*(.+)/);
+            const hashFormat = line.match(/#(\d+)\s+([A-Za-z\s'.]+?)\s+([A-Z]{1,3})\s+(.+)/);
+
+            let match = commaFormat || hashFormat;
+
+            if (match) {
+              const number = parseInt(match[1]);
+              const name = match[2].trim();
+              const position = match[3].trim();
+              const year = match[4].trim();
+
+              const validPositions = ['QB', 'RB', 'WR', 'TE', 'OL', 'DE', 'DT', 'LB', 'CB', 'S', 'K', 'P', 'LS'];
+              if (validPositions.includes(position) && !isNaN(number)) {
+                newRoster.push({ name, number, position, year, height: '', weight: '', hometown: '', highSchool: '', previousSchool: '', url: '' });
+              }
+            }
+          }
+
+          if (newRoster.length > 0) {
+            this.roster = newRoster;
+            localStorage.setItem('generic-roster', JSON.stringify(newRoster));
+            this.importMessage = `Successfully imported ${newRoster.length} players!`;
+            setTimeout(() => {
+              this.showImportModal = false;
+              this.showSetupModal = false;
+              this.importText = '';
+              this.importMessage = '';
+              this.render();
+            }, 2000);
+          } else {
+            this.importMessage = 'No valid players found. Please check the format.';
+          }
+          this.render();
+        } catch (error) {
+          this.importMessage = 'Error parsing roster data. Please check the format.';
+          this.render();
+        }
+      }
+
+      getAvailablePlayers(posCode) {
+        let positionToSearch = posCode.replace('-R', '');
+        if (positionToSearch.startsWith('WR-')) positionToSearch = 'WR';
+        else if (['OT', 'OG', 'C'].includes(positionToSearch)) positionToSearch = 'OL';
+        else if (positionToSearch.startsWith('CB-')) positionToSearch = 'CB';
+        else if (positionToSearch.startsWith('S-')) positionToSearch = 'S';
+        else if (positionToSearch.startsWith('LB-')) positionToSearch = 'LB';
+        else if (positionToSearch.startsWith('DE-')) positionToSearch = 'DE';
+        else if (positionToSearch.startsWith('DT-')) positionToSearch = 'DT';
+
+        const allPlayers = this.roster.filter(p => p.position === positionToSearch);
+
+        // Get all players assigned to ANY position
+        const allAssigned = [];
+        Object.values(this.depthChart).forEach(depthArray => {
+          depthArray.forEach(player => {
+            if (player) allAssigned.push(player);
+          });
+        });
+
+        let available = allPlayers.filter(p =>
+          !allAssigned.some(a => a.number === p.number && a.name === p.name)
+        );
+
+        if (this.searchQuery.trim()) {
+          const query = this.searchQuery.toLowerCase();
+          available = available.filter(p =>
+            p.name.toLowerCase().includes(query) ||
+            p.number.toString().includes(query)
+          );
+        }
+
+        return available;
+      }
+
+      addPlayer(position, depth, player) {
+        this.saveStateForUndo();
+        if (!this.depthChart[position]) {
+          this.depthChart[position] = [];
+        }
+        this.depthChart[position] = [...this.depthChart[position]];
+        this.depthChart[position][depth] = player;
+        this.showPlayerModal = false;
+        this.selectedSlot = null;
+        this.searchQuery = '';
+        this.autoSave();
+        this.render();
+      }
+
+      removePlayer(pos, depth) {
+        this.saveStateForUndo();
+        this.depthChart[pos] = [...this.depthChart[pos]];
+        this.depthChart[pos][depth] = null;
+        this.autoSave();
+        this.render();
+      }
+
+      handleDragStart(player, position, depth) {
+        this.draggedPlayer = { player, fromPosition: position, fromDepth: depth };
+      }
+
+      handleDragOver(position, depth, event) {
+        event.preventDefault();
+        this.dragOverPosition = { position, depth };
+        this.render();
+      }
+
+      handleDragLeave() {
+        this.dragOverPosition = null;
+        this.render();
+      }
+
+      handleDrop(toPosition, toDepth) {
+        if (!this.draggedPlayer) return;
+
+        const { player, fromPosition, fromDepth } = this.draggedPlayer;
+        const fromPosBase = fromPosition.replace('-R', '').split('-')[0];
+        const toPosBase = toPosition.replace('-R', '').split('-')[0];
+
+        const positionGroups = {
+          'WR': ['WR'],
+          'OL': ['OT', 'OG', 'C'],
+          'CB': ['CB'],
+          'S': ['S'],
+          'LB': ['LB'],
+          'DE': ['DE'],
+          'DT': ['DT'],
+          'QB': ['QB'],
+          'RB': ['RB'],
+          'TE': ['TE'],
+          'K': ['K'],
+          'P': ['P'],
+          'LS': ['LS']
+        };
+
+        let canDrop = false;
+        for (const [group, positions] of Object.entries(positionGroups)) {
+          if (positions.some(p => fromPosBase.includes(p) || fromPosition.includes(p)) &&
+              positions.some(p => toPosBase.includes(p) || toPosition.includes(p))) {
+            canDrop = true;
+            break;
+          }
+        }
+
+        if (canDrop) {
+          this.saveStateForUndo();
+          const targetPlayer = this.depthChart[toPosition]?.[toDepth];
+          this.depthChart[fromPosition] = [...(this.depthChart[fromPosition] || [])];
+          this.depthChart[toPosition] = [...(this.depthChart[toPosition] || [])];
+          this.depthChart[toPosition][toDepth] = player;
+          this.depthChart[fromPosition][fromDepth] = targetPlayer || null;
+          this.autoSave();
+        }
+
+        this.draggedPlayer = null;
+        this.dragOverPosition = null;
+        this.render();
+      }
+
+      setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') {
+            if (this.showPlayerModal) {
+              this.showPlayerModal = false;
+              this.selectedSlot = null;
+              this.searchQuery = '';
+              this.render();
+            } else if (this.showImportModal) {
+              this.showImportModal = false;
+              this.importText = '';
+              this.importMessage = '';
+              this.render();
+            } else if (this.showResetModal) {
+              this.showResetModal = false;
+              this.render();
+            } else if (this.showTeamSettingsModal) {
+              this.showTeamSettingsModal = false;
+              this.render();
+            } else if (this.showAppResetModal) {
+              this.showAppResetModal = false;
+              this.render();
+            }
+          }
+
+          if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+            e.preventDefault();
+            this.undo();
+          }
+
+          if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+            e.preventDefault();
+            this.redo();
+          }
+
+          if (e.key === 'd' && !this.showPlayerModal && !this.showImportModal && !this.showResetModal && !this.showTeamSettingsModal && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+            this.toggleDarkMode();
+          }
+
+          if (!this.showPlayerModal && !this.showImportModal && !this.showResetModal && !this.showTeamSettingsModal && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+            if (e.key === 'ArrowUp' && this.depthLevel > 0) {
+              this.depthLevel--;
+              this.render();
+            } else if (e.key === 'ArrowDown' && this.depthLevel < 2) {
+              this.depthLevel++;
+              this.render();
+            } else if (e.key === 'ArrowLeft') {
+              const tabs = ['offense', 'defense', 'special'];
+              const currentIndex = tabs.indexOf(this.activeTab);
+              if (currentIndex > 0) {
+                this.activeTab = tabs[currentIndex - 1];
+                this.render();
+              }
+            } else if (e.key === 'ArrowRight') {
+              const tabs = ['offense', 'defense', 'special'];
+              const currentIndex = tabs.indexOf(this.activeTab);
+              if (currentIndex < tabs.length - 1) {
+                this.activeTab = tabs[currentIndex + 1];
+                this.render();
+              }
+            }
+          }
+        });
+      }
+
+      printChart() {
+        window.print();
+      }
+
+      getPlayerInitials(name) {
+        return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+      }
+
+      render() {
+        const app = document.getElementById('app');
+
+        if (this.loading) {
+          app.innerHTML = this.renderLoadingState();
+          return;
+        }
+
+        app.innerHTML = `
+          <div class="max-w-7xl mx-auto p-4">
+            ${this.renderHeader()}
+            ${this.renderButtons()}
+            ${this.renderTabs()}
+            ${this.activeTab !== 'special' ? this.renderDepthSelector() : ''}
+            ${this.renderField()}
+            ${this.renderKeyboardHints()}
+          </div>
+          ${this.showOnboarding ? this.renderOnboarding() : ''}
+          ${this.showSetupModal ? this.renderSetupModal() : ''}
+          ${this.showTeamSettingsModal ? this.renderTeamSettingsModal() : ''}
+          ${this.showPlayerModal ? this.renderPlayerModal() : ''}
+          ${this.showImportModal ? this.renderImportModal() : ''}
+          ${this.showResetModal ? this.renderResetModal() : ''}
+          ${this.showAppResetModal ? this.renderAppResetModal() : ''}
+        `;
+        this.attachEventListeners();
+      }
+
+      renderLoadingState() {
+        return `
+          <div class="max-w-7xl mx-auto p-4">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6 border-4 border-gray-300">
+              <div class="flex items-center gap-4">
+                <div class="w-16 h-16 skeleton rounded-full"></div>
+                <div class="flex-1">
+                  <div class="h-8 skeleton rounded mb-2 w-3/4"></div>
+                  <div class="h-4 skeleton rounded w-1/2"></div>
+                </div>
+              </div>
+            </div>
+            <div class="flex gap-3 mb-6">
+              ${[1,2,3,4].map(() => `<div class="h-10 w-24 skeleton rounded-lg"></div>`).join('')}
+            </div>
+            <div class="h-12 skeleton rounded-lg mb-4"></div>
+            <div class="h-[500px] skeleton rounded-lg"></div>
+          </div>
+        `;
+      }
+
+      renderOnboarding() {
+        return `
+          <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
+              <div class="p-6 text-center" style="background: ${this.team.primaryColor}; color: white;">
+                <div class="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span style="color: ${this.team.primaryColor};" class="font-display font-bold text-2xl">CFB</span>
+                </div>
+                <h2 class="font-display text-3xl font-bold">College Football Depth Chart</h2>
+              </div>
+              <div class="p-6">
+                <div class="space-y-4">
+                  <div class="flex items-start gap-3">
+                    <div class="w-8 h-8 text-white rounded-full flex items-center justify-center font-bold flex-shrink-0" style="background: ${this.team.primaryColor};">1</div>
+                    <div>
+                      <h3 class="font-semibold text-gray-900 dark:text-white">Import your roster</h3>
+                      <p class="text-gray-600 dark:text-gray-400 text-sm">Paste a roster URL or manually enter players</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-3">
+                    <div class="w-8 h-8 text-white rounded-full flex items-center justify-center font-bold flex-shrink-0" style="background: ${this.team.primaryColor};">2</div>
+                    <div>
+                      <h3 class="font-semibold text-gray-900 dark:text-white">Click positions to assign</h3>
+                      <p class="text-gray-600 dark:text-gray-400 text-sm">Select players for each position on the field</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-3">
+                    <div class="w-8 h-8 text-white rounded-full flex items-center justify-center font-bold flex-shrink-0" style="background: ${this.team.primaryColor};">3</div>
+                    <div>
+                      <h3 class="font-semibold text-gray-900 dark:text-white">Drag to rearrange</h3>
+                      <p class="text-gray-600 dark:text-gray-400 text-sm">Drag players between positions to swap them</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="p-4 border-t dark:border-gray-700">
+                <button onclick="app.dismissOnboarding()" class="w-full text-white py-3 rounded-lg font-display font-semibold text-lg transition-colors" style="background: ${this.team.primaryColor};">
+                  Get Started
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      renderSetupModal() {
+        const importTab = this.setupImportTab || 'url';
+        return `
+          <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden my-4">
+              <div class="p-6 text-center text-white" style="background: ${this.team.primaryColor};">
+                <h2 class="font-display text-2xl font-bold">Setup Your Team</h2>
+                <p class="opacity-80">Import a roster to get started</p>
+              </div>
+              <div class="p-6">
+                <div class="mb-6">
+                  <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Team Name</label>
+                  <input
+                    type="text"
+                    id="teamNameInput"
+                    placeholder="e.g., Ohio State Buckeyes"
+                    value="${this.team.name !== 'Your Team' ? this.team.name : ''}"
+                    class="w-full px-4 py-2 border-2 border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div class="mb-6">
+                  <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Primary Color</label>
+                  <div class="flex gap-3">
+                    <input
+                      type="color"
+                      id="teamColorInput"
+                      value="${this.team.primaryColor}"
+                      class="w-12 h-10 rounded cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      id="teamColorText"
+                      value="${this.team.primaryColor}"
+                      placeholder="#1a1a2e"
+                      class="flex-1 px-4 py-2 border-2 border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div class="border-t dark:border-gray-700 pt-6">
+                  <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Import Roster</label>
+
+                  <!-- Import Method Tabs -->
+                  <div class="flex mb-4 border-b dark:border-gray-600">
+                    <button onclick="app.setupImportTab = 'url'; app.render()" class="px-4 py-2 font-semibold text-sm ${importTab === 'url' ? 'border-b-2 text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}" style="${importTab === 'url' ? `border-color: ${this.team.primaryColor};` : ''}">
+                      <span class="mr-1">🔗</span> From URL
+                    </button>
+                    <button onclick="app.setupImportTab = 'manual'; app.render()" class="px-4 py-2 font-semibold text-sm ${importTab === 'manual' ? 'border-b-2 text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}" style="${importTab === 'manual' ? `border-color: ${this.team.primaryColor};` : ''}">
+                      <span class="mr-1">📝</span> Manual Entry
+                    </button>
+                  </div>
+
+                  ${importTab === 'url' ? `
+                    <!-- URL Import -->
+                    <div>
+                      <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                        Enter your team's roster page URL (works with most college athletics sites)
+                      </p>
+                      <input
+                        type="url"
+                        id="rosterUrlInput"
+                        placeholder="https://ohiostatebuckeyes.com/sports/football/roster"
+                        class="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white mb-4"
+                      />
+
+                      <button
+                        onclick="app.fetchRosterFromUrl()"
+                        class="w-full py-3 rounded-lg font-display font-semibold text-white transition-colors flex items-center justify-center gap-2 ${this.fetchingRoster ? 'opacity-70 cursor-not-allowed' : ''}"
+                        style="background: ${this.team.primaryColor};"
+                        ${this.fetchingRoster ? 'disabled' : ''}
+                      >
+                        ${this.fetchingRoster ? `
+                          <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                          </svg>
+                          Fetching Roster...
+                        ` : `
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+                          </svg>
+                          Fetch Roster
+                        `}
+                      </button>
+
+                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-3 text-center">
+                        Works with Sidearm Sports sites (most college athletics). If import fails, use Manual Entry.
+                      </p>
+                    </div>
+                  ` : `
+                    <!-- Manual Import -->
+                    <div>
+                      <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Format: #Number Name Position Year (one player per line)</p>
+                      <textarea
+                        id="setupRosterTextarea"
+                        placeholder="#1 John Smith QB Sr.&#10;#24 Mike Johnson RB Jr.&#10;#7 David Wilson WR So.&#10;..."
+                        class="w-full h-48 p-3 border-2 border-gray-200 dark:border-gray-600 rounded-lg font-mono text-sm focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      ></textarea>
+                    </div>
+                  `}
+
+                  ${this.importMessage ? `
+                    <div class="mt-3 p-2 rounded ${this.importMessage.includes('Success') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'} text-sm">
+                      ${this.importMessage}
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+              <div class="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex gap-3">
+                <button
+                  onclick="app.saveSetup()"
+                  class="flex-1 text-white px-4 py-3 rounded-lg font-display font-semibold transition-colors"
+                  style="background: ${this.team.primaryColor};"
+                >
+                  ${importTab === 'url' ? 'Continue' : 'Save & Import'}
+                </button>
+                <button
+                  onclick="app.showSetupModal = false; app.render()"
+                  class="px-4 py-3 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  Skip
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      async fetchRosterFromUrl() {
+        const urlInput = document.getElementById('rosterUrlInput');
+        const url = urlInput?.value?.trim();
+
+        if (!url) {
+          this.importMessage = 'Please enter a roster URL';
+          this.render();
+          return;
+        }
+
+        // Validate URL format
+        try {
+          new URL(url);
+        } catch (e) {
+          this.importMessage = 'Please enter a valid URL';
+          this.render();
+          return;
+        }
+
+        this.fetchingRoster = true;
+        this.importMessage = '';
+        this.render();
+
+        try {
+          const response = await fetch('/api/scrape', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to fetch roster');
+          }
+
+          // Update team info
+          if (data.team) {
+            this.team.name = data.team.name || this.team.name;
+            this.team.primaryColor = data.team.primaryColor || this.team.primaryColor;
+            this.team.rosterUrl = data.team.rosterUrl || url;
+            this.saveTeam();
+          }
+
+          // Update roster
+          if (data.roster && data.roster.length > 0) {
+            this.roster = data.roster;
+            localStorage.setItem('generic-roster', JSON.stringify(this.roster));
+            this.importMessage = `Success! Imported ${data.roster.length} players from ${data.team?.name || 'roster'}`;
+            this.showSetupModal = false;
+          } else {
+            this.importMessage = 'No players found on that page. Try using Manual Entry.';
+          }
+
+        } catch (error) {
+          console.error('Fetch error:', error);
+          this.importMessage = error.message || 'Failed to fetch roster. Try using Manual Entry.';
+        } finally {
+          this.fetchingRoster = false;
+          this.render();
+        }
+      }
+
+      saveSetup() {
+        const nameInput = document.getElementById('teamNameInput');
+        const colorInput = document.getElementById('teamColorText');
+        const rosterTextarea = document.getElementById('setupRosterTextarea');
+
+        if (nameInput.value.trim()) {
+          this.team.name = nameInput.value.trim();
+        }
+        if (colorInput.value.trim()) {
+          this.team.primaryColor = colorInput.value.trim();
+        }
+        this.saveTeam();
+
+        if (rosterTextarea.value.trim()) {
+          this.importText = rosterTextarea.value;
+          this.importRoster();
+        } else {
+          this.showSetupModal = false;
+          this.render();
+        }
+      }
+
+      renderTeamSettingsModal() {
+        return `
+          <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { app.showTeamSettingsModal = false; app.render(); }">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+              <div class="p-4 text-white flex items-center justify-between" style="background: ${this.team.primaryColor};">
+                <h2 class="font-display text-xl font-bold">Team Settings</h2>
+                <button onclick="app.showTeamSettingsModal = false; app.render()" class="text-white/80 hover:text-white">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="p-4">
+                <div class="mb-4">
+                  <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Team Name</label>
+                  <input
+                    type="text"
+                    id="settingsTeamName"
+                    value="${this.team.name}"
+                    class="w-full px-4 py-2 border-2 border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div class="mb-4">
+                  <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Primary Color</label>
+                  <div class="flex gap-3">
+                    <input type="color" id="settingsTeamColor" value="${this.team.primaryColor}" class="w-12 h-10 rounded cursor-pointer"/>
+                    <input type="text" id="settingsTeamColorText" value="${this.team.primaryColor}" class="flex-1 px-4 py-2 border-2 border-gray-200 dark:border-gray-600 rounded-lg font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-white"/>
+                  </div>
+                </div>
+              </div>
+              <div class="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                <button onclick="app.saveTeamSettings()" class="w-full text-white py-3 rounded-lg font-display font-semibold" style="background: ${this.team.primaryColor};">
+                  Save Changes
+                </button>
+              </div>
+              <div class="p-4 border-t dark:border-gray-700">
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Clear all data and start fresh with a new team</p>
+                <button onclick="app.resetApp()" class="w-full py-3 rounded-lg font-display font-semibold border-2 border-red-500 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                  Reset App
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      saveTeamSettings() {
+        const nameInput = document.getElementById('settingsTeamName');
+        const colorInput = document.getElementById('settingsTeamColorText');
+        if (nameInput.value.trim()) this.team.name = nameInput.value.trim();
+        if (colorInput.value.trim()) this.team.primaryColor = colorInput.value.trim();
+        this.saveTeam();
+        this.showTeamSettingsModal = false;
+        this.render();
+      }
+
+      renderHeader() {
+        return `
+          <div class="bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg shadow-lg p-6 mb-6 border-4" style="border-color: ${this.team.primaryColor};">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-4">
+                <div class="w-16 h-16 rounded-full flex items-center justify-center text-white font-display font-bold text-xl flex-shrink-0 shadow-lg" style="background: ${this.team.primaryColor};">
+                  <span>${this.team.name.split(' ').map(w => w[0]).join('').substring(0, 3)}</span>
+                </div>
+                <div>
+                  <h1 class="font-display text-3xl font-bold mb-1 tracking-wide">${this.team.name.toUpperCase()}</h1>
+                  <p class="text-gray-500 dark:text-gray-400 font-body">Interactive Depth Chart Builder</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-3">
+                ${this.saving ? `
+                  <span class="text-green-600 dark:text-green-400 text-sm font-semibold flex items-center gap-2 animate-savedPop">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                    Auto-saved
+                  </span>
+                ` : ''}
+                <button onclick="app.showTeamSettingsModal = true; app.render()" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors no-print" title="Team settings">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-gray-600 dark:text-gray-300">
+                    <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+                  </svg>
+                </button>
+                <button onclick="app.toggleDarkMode()" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors no-print" title="Toggle dark mode (D)">
+                  ${this.darkMode ? `
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-yellow-500">
+                      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                  ` : `
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-gray-600">
+                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                  `}
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      renderButtons() {
+        return `
+          <div class="flex flex-wrap gap-3 mb-6 no-print">
+            <button onclick="app.undo()" class="flex items-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white border-2 px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50" style="border-color: ${this.team.primaryColor};" ${this.undoStack.length === 0 ? 'disabled' : ''}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+              Undo
+            </button>
+            <button onclick="app.redo()" class="flex items-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white border-2 px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50" style="border-color: ${this.team.primaryColor};" ${this.redoStack.length === 0 ? 'disabled' : ''}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.13-9.36L23 10"/></svg>
+              Redo
+            </button>
+            <div class="w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+            <button onclick="app.showImportModal = true; app.render()" class="flex items-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white border-2 px-4 py-2 rounded-lg font-semibold transition-colors" style="border-color: ${this.team.primaryColor};">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+              Import
+            </button>
+            <button onclick="app.exportDepthChart()" class="flex items-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white border-2 px-4 py-2 rounded-lg font-semibold transition-colors" style="border-color: ${this.team.primaryColor};">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+              Export
+            </button>
+            <button onclick="app.printChart()" class="flex items-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white border-2 px-4 py-2 rounded-lg font-semibold transition-colors" style="border-color: ${this.team.primaryColor};">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              Print
+            </button>
+            <button onclick="app.showResetConfirmation()" class="flex items-center gap-2 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 border-2 border-red-300 dark:border-red-800 px-4 py-2 rounded-lg font-semibold transition-colors">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+              Reset
+            </button>
+          </div>
+        `;
+      }
+
+      renderTabs() {
+        const tabs = [
+          { key: 'offense', label: 'OFFENSE', icon: '🏈' },
+          { key: 'defense', label: 'DEFENSE', icon: '🛡️' },
+          { key: 'special', label: 'SPECIAL TEAMS', icon: '⭐' }
+        ];
+
+        return `
+          <div class="flex gap-2 mb-4">
+            ${tabs.map(tab => `
+              <button
+                onclick="app.activeTab = '${tab.key}'; app.render()"
+                class="px-6 py-3 rounded-t-lg font-display font-semibold text-lg tracking-wide transition-all border-2 ${
+                  this.activeTab === tab.key
+                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-lg -mb-[2px] relative z-10'
+                    : 'bg-gray-200/50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-transparent hover:bg-gray-200 dark:hover:bg-gray-600'
+                }"
+                style="${this.activeTab === tab.key ? `border-color: ${this.team.primaryColor};` : ''}"
+              >
+                <span class="mr-2">${tab.icon}</span>
+                ${tab.label}
+              </button>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      renderDepthSelector() {
+        return `
+          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-4 border-2" style="border-color: ${this.team.primaryColor};">
+            <div class="flex items-center gap-4 flex-wrap">
+              <span class="font-display font-semibold text-gray-900 dark:text-white">DEPTH LEVEL:</span>
+              <div class="flex gap-2">
+                ${[0, 1, 2].map(level => `
+                  <button
+                    onclick="app.depthLevel = ${level}; app.render()"
+                    class="px-4 py-2 rounded-lg font-semibold transition-all border-2 ${
+                      this.depthLevel === level
+                        ? 'text-white shadow-md scale-105'
+                        : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600'
+                    }"
+                    style="${this.depthLevel === level ? `background: ${this.team.primaryColor}; border-color: ${this.team.primaryColor};` : `border-color: ${this.team.primaryColor};`}"
+                  >
+                    ${level === 0 ? '🥇 Starters' : level === 1 ? '🥈 2nd String' : '🥉 3rd String'}
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      renderField() {
+        const positions = POSITIONS[this.activeTab];
+
+        return `
+          <div class="field-view field-container bg-gradient-to-b from-green-700 to-green-600 rounded-lg shadow-lg p-4 md:p-8 relative overflow-hidden" style="min-height: 600px;">
+            <div class="field-lines absolute inset-0 pointer-events-none"></div>
+            <div class="absolute left-2 top-1/2 -translate-y-1/2 text-white/20 font-display text-4xl font-bold">50</div>
+            <div class="absolute right-2 top-1/2 -translate-y-1/2 text-white/20 font-display text-4xl font-bold">50</div>
+            ${positions.map((pos, index) => this.renderPosition(pos, index)).join('')}
+            <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-white/20 font-display text-4xl font-bold tracking-widest">
+              ${this.activeTab === 'offense' ? 'OFFENSE' : this.activeTab === 'defense' ? 'DEFENSE' : 'SPECIAL TEAMS'}
+            </div>
+          </div>
+
+          <div class="mobile-list-view bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+            <div class="bg-green-700 p-3 text-center">
+              <span class="text-white font-display text-xl font-bold tracking-widest">
+                ${this.activeTab === 'offense' ? 'OFFENSE' : this.activeTab === 'defense' ? 'DEFENSE' : 'SPECIAL TEAMS'}
+              </span>
+            </div>
+            <div class="divide-y divide-gray-200 dark:divide-gray-700">
+              ${positions.map((pos, index) => this.renderMobilePosition(pos, index)).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      renderPosition(pos, index) {
+        const posKey = pos.isRight ? `${pos.code}-R` : pos.code;
+        const player = this.depthChart[posKey]?.[this.depthLevel];
+        const isDragOver = this.dragOverPosition?.position === posKey && this.dragOverPosition?.depth === this.depthLevel;
+
+        return `
+          <div class="absolute transform -translate-x-1/2 -translate-y-1/2 position-card" style="left: ${pos.x}%; top: ${pos.y}%;" data-position="${posKey}" data-depth="${this.depthLevel}">
+            <div
+              class="tooltip ${player ? 'text-white' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-2'} ${isDragOver ? 'drag-over' : ''} rounded-lg shadow-lg transition-colors cursor-pointer position-card-inner"
+              style="min-width: 80px; ${player ? `background: ${this.team.primaryColor};` : `border-color: ${this.team.primaryColor};`}"
+              data-tooltip="${pos.fullName}"
+              onclick="app.selectedSlot = { position: '${posKey}', depth: ${this.depthLevel} }; app.showPlayerModal = true; app.render()"
+              draggable="${player ? 'true' : 'false'}"
+              ondragstart="app.handleDragStart(${player ? JSON.stringify(player).replace(/"/g, '&quot;') : 'null'}, '${posKey}', ${this.depthLevel})"
+              ondragover="app.handleDragOver('${posKey}', ${this.depthLevel}, event)"
+              ondragleave="app.handleDragLeave()"
+              ondrop="app.handleDrop('${posKey}', ${this.depthLevel})"
+            >
+              <div class="px-2 py-1 ${player ? 'border-b border-white/30' : 'border-b-2'} text-center" style="${!player ? `border-color: ${this.team.primaryColor};` : ''}">
+                <div class="text-xs font-display font-bold tracking-wide">${pos.name}</div>
+              </div>
+              ${player ? `
+                <div class="px-2 py-2 text-center">
+                  <div class="w-8 h-8 mx-auto mb-1 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">
+                    ${this.getPlayerInitials(player.name)}
+                  </div>
+                  <div class="font-display font-bold text-sm">#${player.number}</div>
+                  <div class="text-xs truncate max-w-[70px]" title="${player.name}${player.height ? ' • ' + player.height : ''}${player.weight ? ' • ' + player.weight : ''}">${player.name.split(' ').pop()}</div>
+                  ${player.url ? `<a href="${player.url}" target="_blank" onclick="event.stopPropagation()" class="inline-block mt-1 text-white/70 hover:text-white" title="View player page">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  </a>` : ''}
+                </div>
+              ` : `
+                <div class="px-2 py-3 text-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mx-auto opacity-50">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                </div>
+              `}
+            </div>
+          </div>
+        `;
+      }
+
+      renderMobilePosition(pos, index) {
+        const posKey = pos.isRight ? `${pos.code}-R` : pos.code;
+        const player = this.depthChart[posKey]?.[this.depthLevel];
+
+        return `
+          <div
+            class="flex items-center p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            onclick="app.selectedSlot = { position: '${posKey}', depth: ${this.depthLevel} }; app.showPlayerModal = true; app.render()"
+          >
+            <div class="w-16 flex-shrink-0">
+              <div class="text-white text-center py-1 px-2 rounded font-display font-bold text-sm" style="background: ${this.team.primaryColor};">
+                ${pos.name}
+              </div>
+            </div>
+            <div class="flex-1 ml-3">
+              <div class="text-xs text-gray-500 dark:text-gray-400 mb-0.5">${pos.fullName}</div>
+              ${player ? `
+                <div class="flex items-center gap-2">
+                  <div class="w-8 h-8 text-white rounded-full flex items-center justify-center text-xs font-bold" style="background: ${this.team.primaryColor};">
+                    ${this.getPlayerInitials(player.name)}
+                  </div>
+                  <div class="flex-1">
+                    <div class="font-semibold text-gray-900 dark:text-white text-sm">#${player.number} ${player.name}</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">${player.year}${player.height ? ` • ${player.height}` : ''}${player.weight ? ` • ${player.weight}` : ''}</div>
+                  </div>
+                  ${player.url ? `<a href="${player.url}" target="_blank" onclick="event.stopPropagation()" class="p-1 text-gray-400 hover:text-gray-600">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  </a>` : ''}
+                </div>
+              ` : `
+                <div class="flex items-center gap-2 text-gray-400">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  <span class="text-sm">Tap to assign</span>
+                </div>
+              `}
+            </div>
+          </div>
+        `;
+      }
+
+      renderKeyboardHints() {
+        return `
+          <div class="mt-4 text-center text-white/60 text-sm no-print">
+            <span class="inline-flex items-center gap-4 flex-wrap justify-center">
+              <span><kbd class="px-2 py-1 bg-white/10 rounded text-xs">←→</kbd> Tabs</span>
+              <span><kbd class="px-2 py-1 bg-white/10 rounded text-xs">↑↓</kbd> Depth</span>
+              <span><kbd class="px-2 py-1 bg-white/10 rounded text-xs">Ctrl+Z</kbd> Undo</span>
+              <span><kbd class="px-2 py-1 bg-white/10 rounded text-xs">D</kbd> Dark</span>
+            </span>
+          </div>
+        `;
+      }
+
+      renderPlayerModal() {
+        if (!this.selectedSlot) return '';
+
+        const { position, depth } = this.selectedSlot;
+        const availablePlayers = this.getAvailablePlayers(position);
+        const currentPlayer = this.depthChart[position]?.[depth];
+
+        const allPositions = [...POSITIONS.offense, ...POSITIONS.defense, ...POSITIONS.special];
+        const posInfo = allPositions.find(p => {
+          const key = p.isRight ? `${p.code}-R` : p.code;
+          return key === position;
+        });
+
+        return `
+          <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { app.showPlayerModal = false; app.selectedSlot = null; app.searchQuery = ''; app.render(); }">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
+              <div class="p-4 border-b dark:border-gray-700 flex items-center justify-between text-white" style="background: ${this.team.primaryColor};">
+                <div>
+                  <h2 class="font-display text-xl font-bold">${posInfo?.fullName || position}</h2>
+                  <p class="text-sm text-white/70">${depth === 0 ? 'Starter' : `${depth + 1}${depth === 1 ? 'nd' : 'rd'} String`}</p>
+                </div>
+                <button onclick="app.showPlayerModal = false; app.selectedSlot = null; app.searchQuery = ''; app.render()" class="text-white/80 hover:text-white p-1">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+
+              <div class="p-4 border-b dark:border-gray-700">
+                <div class="relative">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input type="text" id="playerSearch" placeholder="Search by name or number..." class="w-full pl-10 pr-4 py-2 border-2 border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white" value="${this.searchQuery}"/>
+                </div>
+              </div>
+
+              <div class="p-4 overflow-y-auto flex-1">
+                ${currentPlayer ? `
+                  <div class="mb-4 p-4 rounded-lg border" style="background: ${this.team.primaryColor}10; border-color: ${this.team.primaryColor}30;">
+                    <div class="text-xs font-semibold mb-2 uppercase tracking-wide" style="color: ${this.team.primaryColor};">Current Player</div>
+                    <div class="flex items-center gap-3">
+                      <div class="w-12 h-12 text-white rounded-full flex items-center justify-center font-bold text-lg" style="background: ${this.team.primaryColor};">
+                        ${this.getPlayerInitials(currentPlayer.name)}
+                      </div>
+                      <div class="flex-1">
+                        <div class="font-bold text-gray-900 dark:text-white">
+                          #${currentPlayer.number}
+                          ${currentPlayer.url ? `<a href="${currentPlayer.url}" target="_blank" class="hover:underline">${currentPlayer.name}</a>` : currentPlayer.name}
+                        </div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400">${currentPlayer.year}${currentPlayer.height ? ` • ${currentPlayer.height}` : ''}${currentPlayer.weight ? ` • ${currentPlayer.weight}` : ''}</div>
+                        ${currentPlayer.hometown ? `<div class="text-xs text-gray-500">${currentPlayer.hometown}</div>` : ''}
+                      </div>
+                      <button onclick="app.removePlayer('${position}', ${depth})" class="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Remove">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                ` : ''}
+
+                ${availablePlayers.length === 0 ? `
+                  <div class="text-center py-8">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-gray-300 dark:text-gray-600 mb-3"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    <p class="text-gray-500 dark:text-gray-400">${this.searchQuery ? 'No players match your search' : 'No available players for this position'}</p>
+                  </div>
+                ` : `
+                  <div class="space-y-2">
+                    ${availablePlayers.map((player, i) => `
+                      <button
+                        onclick="app.addPlayer('${position}', ${depth}, ${JSON.stringify(player).replace(/"/g, '&quot;')})"
+                        class="w-full text-left bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 rounded-lg p-3 transition-colors"
+                      >
+                        <div class="flex items-center gap-3">
+                          <div class="w-10 h-10 bg-gray-200 dark:bg-gray-600 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 text-sm font-semibold">
+                            ${this.getPlayerInitials(player.name)}
+                          </div>
+                          <div class="flex-1">
+                            <div class="font-semibold text-gray-900 dark:text-white">#${player.number} ${player.name}</div>
+                            <div class="text-sm text-gray-500 dark:text-gray-400">${player.position} • ${player.year}${player.height ? ` • ${player.height}` : ''}${player.weight ? ` • ${player.weight}` : ''}</div>
+                            ${player.hometown ? `<div class="text-xs text-gray-400 dark:text-gray-500">${player.hometown}${player.previousSchool ? ` (${player.previousSchool})` : ''}</div>` : ''}
+                          </div>
+                          ${player.url ? `<a href="${player.url}" target="_blank" onclick="event.stopPropagation()" class="p-1 text-gray-400 hover:text-gray-600" title="View profile">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                          </a>` : ''}
+                        </div>
+                      </button>
+                    `).join('')}
+                  </div>
+                `}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      renderImportModal() {
+        return `
+          <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { app.showImportModal = false; app.importText = ''; app.importMessage = ''; app.render(); }">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+              <div class="p-4 border-b dark:border-gray-700 flex items-center justify-between text-white" style="background: ${this.team.primaryColor};">
+                <h2 class="font-display text-xl font-bold">Import Roster</h2>
+                <button onclick="app.showImportModal = false; app.importText = ''; app.importMessage = ''; app.render()" class="text-white/80 hover:text-white">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+
+              <div class="p-4 overflow-y-auto flex-1">
+                <div class="mb-4">
+                  <p class="text-sm text-gray-700 dark:text-gray-300 mb-2">Paste roster data below. Each line should contain:</p>
+                  <div class="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg text-sm font-mono text-gray-800 dark:text-gray-200 mb-2">#19 Jack Lambert QB RJr</div>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">Format: #Number Name Position Year (or commas)</p>
+                </div>
+
+                <textarea id="importTextarea" placeholder="Paste roster data here..." class="w-full h-64 p-3 border-2 border-gray-200 dark:border-gray-600 rounded-lg font-mono text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">${this.importText}</textarea>
+
+                ${this.importMessage ? `
+                  <div class="mt-3 p-3 rounded-lg ${this.importMessage.includes('Success') ? 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300'}">
+                    ${this.importMessage}
+                  </div>
+                ` : ''}
+              </div>
+
+              <div class="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex gap-3">
+                <button onclick="app.importRoster()" class="flex-1 text-white px-4 py-3 rounded-lg font-display font-semibold" style="background: ${this.team.primaryColor};">
+                  Import Roster
+                </button>
+                <button onclick="app.showImportModal = false; app.importText = ''; app.importMessage = ''; app.render()" class="px-4 py-3 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white rounded-lg font-semibold">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      renderResetModal() {
+        return `
+          <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { app.showResetModal = false; app.render(); }">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+              <div class="p-6 text-center">
+                <div class="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-500">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                </div>
+                <h2 class="font-display text-2xl font-bold text-gray-900 dark:text-white mb-2">Reset Depth Chart?</h2>
+                <p class="text-gray-600 dark:text-gray-400 mb-6">This will remove all player assignments. You can undo with Ctrl+Z.</p>
+                <div class="flex gap-3">
+                  <button onclick="app.showResetModal = false; app.render()" class="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-600">Cancel</button>
+                  <button onclick="app.confirmReset()" class="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold">Reset</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      renderAppResetModal() {
+        return `
+          <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { app.showAppResetModal = false; app.render(); }">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+              <div class="p-6 text-center">
+                <div class="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-500">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                </div>
+                <h2 class="font-display text-2xl font-bold text-gray-900 dark:text-white mb-2">Reset Entire App?</h2>
+                <p class="text-gray-600 dark:text-gray-400 mb-6">This will clear all data including your roster and depth chart. The app will return to its initial setup state.</p>
+                <div class="flex gap-3">
+                  <button onclick="app.showAppResetModal = false; app.render()" class="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-600">Cancel</button>
+                  <button onclick="app.confirmAppReset()" class="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold">Reset App</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      attachEventListeners() {
+        const textarea = document.getElementById('importTextarea');
+        if (textarea) {
+          textarea.addEventListener('input', (e) => { this.importText = e.target.value; });
+        }
+
+        const setupTextarea = document.getElementById('setupRosterTextarea');
+        if (setupTextarea) {
+          setupTextarea.addEventListener('input', (e) => { this.importText = e.target.value; });
+        }
+
+        const colorInput = document.getElementById('teamColorInput');
+        const colorText = document.getElementById('teamColorText');
+        if (colorInput && colorText) {
+          colorInput.addEventListener('input', (e) => { colorText.value = e.target.value; });
+          colorText.addEventListener('input', (e) => { colorInput.value = e.target.value; });
+        }
+
+        const settingsColor = document.getElementById('settingsTeamColor');
+        const settingsColorText = document.getElementById('settingsTeamColorText');
+        if (settingsColor && settingsColorText) {
+          settingsColor.addEventListener('input', (e) => { settingsColorText.value = e.target.value; });
+          settingsColorText.addEventListener('input', (e) => { settingsColor.value = e.target.value; });
+        }
+
+        // URL input for roster import
+        const urlInput = document.getElementById('rosterUrlInput');
+        const commandOutput = document.getElementById('commandOutput');
+        if (urlInput && commandOutput) {
+          urlInput.addEventListener('input', (e) => {
+            const url = e.target.value.trim();
+            if (url) {
+              commandOutput.value = `node scrape-roster.js "${url}" && node update-html.js`;
+            } else {
+              commandOutput.value = '';
+            }
+          });
+        }
+
+        const searchInput = document.getElementById('playerSearch');
+        if (searchInput) {
+          searchInput.addEventListener('input', (e) => {
+            this.searchQuery = e.target.value;
+            this.render();
+            setTimeout(() => {
+              const newInput = document.getElementById('playerSearch');
+              if (newInput) {
+                newInput.focus();
+                newInput.setSelectionRange(newInput.value.length, newInput.value.length);
+              }
+            }, 0);
+          });
+          searchInput.focus();
+        }
+      }
+    }
+
+    const app = new DepthChartApp();
+  </script>
+</body>
+</html>
