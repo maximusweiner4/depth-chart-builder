@@ -133,49 +133,99 @@ export default async function handler(req, res) {
           return link ? (link.startsWith('http') ? link : baseUrl + link) : '';
         };
 
-        // Extract data based on column mapping
-        let numberText = getCellText(colMap.number);
-        let name = getCellText(colMap.name);
-        let playerUrl = getCellLink(colMap.name);
-        let position = getCellText(colMap.position);
-        let year = getCellText(colMap.year);
-        let height = getCellText(colMap.height);
-        let weight = getCellText(colMap.weight);
-        let hometown = getCellText(colMap.hometown);
-        let highSchool = getCellText(colMap.highSchool);
-        let previousSchool = getCellText(colMap.previousSchool);
+        // First, find the name cell - it's usually the one with a player profile link
+        let nameIdx = -1;
+        let name = '';
+        let playerUrl = '';
 
-        // Clean up name - remove extra whitespace and social links
-        name = name.split('\n')[0].trim();
-        name = name.replace(/\s*(Twitter|Instagram|Facebook|Opens in|X Opens).*$/i, '').trim();
-
-        // If name looks like a position, columns might be shifted
-        if (/^(QB|RB|WR|TE|OL|DL|LB|CB|S|K|P|LS|DE|DT|OT|OG|C|FB|ATH|DB|NT)$/i.test(name)) {
-          // Shift: name is in position col, position is in year col, etc.
-          position = name;
-          name = getCellText(colMap.position);
-          if (!name || /^(QB|RB|WR|TE|OL|DL|LB|CB|S|K|P)$/i.test(name)) {
-            // Try finding name in a different cell - look for cell with a link
-            for (let c = 0; c < cells.length; c++) {
-              const cellText = cells.eq(c).text().trim().split('\n')[0].trim();
-              const hasLink = cells.eq(c).find('a').length > 0;
-              if (hasLink && cellText && !/^\d+$/.test(cellText) && !/^(QB|RB|WR|TE|OL|DL|LB|CB|S|K|P|LS|DE|DT|OT|OG|FR|SO|JR|SR|GR)$/i.test(cellText)) {
-                name = cellText.replace(/\s*(Twitter|Instagram|Facebook|Opens in|X Opens).*$/i, '').trim();
-                playerUrl = getCellLink(c);
+        for (let c = 0; c < cells.length; c++) {
+          const cell = cells.eq(c);
+          const link = cell.find('a');
+          if (link.length > 0) {
+            const href = link.attr('href') || '';
+            const linkText = link.text().trim().split('\n')[0].trim();
+            // Check if this looks like a player profile link (contains name-like text)
+            if (href.includes('/roster/') || href.includes('/player/') || href.includes('/sports/')) {
+              // Check if text looks like a name (has space, not all caps abbreviation)
+              if (linkText && linkText.includes(' ') && !/^[A-Z]{2,4}$/.test(linkText)) {
+                name = linkText.replace(/\s*(Twitter|Instagram|Facebook|Opens in|X Opens|Inflcr).*$/i, '').trim();
+                playerUrl = href.startsWith('http') ? href : baseUrl + href;
+                nameIdx = c;
                 break;
               }
             }
           }
         }
 
-        // If number is empty but first cell has a number, use it
-        if (!numberText || !/^\d+$/.test(numberText)) {
-          for (let c = 0; c < Math.min(3, cells.length); c++) {
-            const cellText = cells.eq(c).text().trim();
-            if (/^\d{1,2}$/.test(cellText)) {
-              numberText = cellText;
+        // If no profile link found, look for cell with name-like content
+        if (!name) {
+          for (let c = 0; c < cells.length; c++) {
+            const cellText = cells.eq(c).text().trim().split('\n')[0].trim()
+              .replace(/\s*(Twitter|Instagram|Facebook|Opens in|X Opens|Inflcr).*$/i, '').trim();
+            // Name should have a space (first + last), not be a number, not be a position/year
+            if (cellText && cellText.includes(' ') &&
+                !/^\d+$/.test(cellText) &&
+                !/^(QB|RB|WR|TE|OL|DL|LB|CB|S|K|P|LS|DE|DT|OT|OG|C|FB|ATH|DB|NT|Fr|So|Jr|Sr|Gr|Freshman|Sophomore|Junior|Senior|Graduate|Redshirt)\.?$/i.test(cellText) &&
+                !/^\d+-\d+$/.test(cellText) && // not height like 6-2
+                !/^\d+\s*lbs?$/i.test(cellText)) { // not weight
+              name = cellText;
+              nameIdx = c;
+              playerUrl = getCellLink(c);
               break;
             }
+          }
+        }
+
+        // Find number - usually first cell or a cell with just 1-2 digits
+        let numberText = '';
+        for (let c = 0; c < Math.min(3, cells.length); c++) {
+          const cellText = cells.eq(c).text().trim();
+          if (/^\d{1,2}$/.test(cellText)) {
+            numberText = cellText;
+            break;
+          }
+        }
+
+        // Find position - 2-3 letter abbreviation
+        let position = '';
+        for (let c = 0; c < cells.length; c++) {
+          if (c === nameIdx) continue;
+          const cellText = cells.eq(c).text().trim();
+          if (/^(QB|RB|WR|TE|OL|DL|LB|CB|S|K|P|LS|DE|DT|OT|OG|C|FB|ATH|DB|NT|ILB|OLB|FS|SS|WDE|SDE|MLB)$/i.test(cellText)) {
+            position = cellText;
+            break;
+          }
+        }
+
+        // Find year/class
+        let year = '';
+        for (let c = 0; c < cells.length; c++) {
+          if (c === nameIdx) continue;
+          const cellText = cells.eq(c).text().trim();
+          if (/^(Fr|So|Jr|Sr|Gr|Freshman|Sophomore|Junior|Senior|Graduate|Redshirt|R-Fr|R-So|R-Jr|R-Sr|RS|RED|SOP|JUN|SEN|FRE)\.?$/i.test(cellText) ||
+              /^(Redshirt\s+)?(Freshman|Sophomore|Junior|Senior)$/i.test(cellText)) {
+            year = cellText;
+            break;
+          }
+        }
+
+        // Find height (format: X-XX)
+        let height = '';
+        for (let c = 0; c < cells.length; c++) {
+          const cellText = cells.eq(c).text().trim();
+          if (/^\d+-\d{1,2}$/.test(cellText) || /^\d+'\s*\d+"?$/.test(cellText)) {
+            height = cellText;
+            break;
+          }
+        }
+
+        // Find weight (number followed by lbs or just 3 digit number)
+        let weight = '';
+        for (let c = 0; c < cells.length; c++) {
+          const cellText = cells.eq(c).text().trim();
+          if (/^\d{2,3}\s*lbs?\.?$/i.test(cellText) || /^\d{3}$/.test(cellText)) {
+            weight = cellText;
+            break;
           }
         }
 
@@ -187,6 +237,38 @@ export default async function handler(req, res) {
         // Skip if name looks like a position abbreviation
         if (/^[A-Z]{1,3}$/.test(name) && /^(QB|RB|WR|TE|OL|DL|LB|CB|S|K|P|LS|DE|DT|OT|OG|C|FB|ATH|DB|NT)$/i.test(name)) return;
 
+        // Get remaining fields from other cells (hometown, high school, etc.)
+        let hometown = '';
+        let highSchool = '';
+        let previousSchool = '';
+
+        // These are typically in later columns - just grab remaining text cells
+        const usedIndices = new Set();
+        cells.each((c, cell) => {
+          const cellText = $(cell).text().trim();
+          if (cellText === numberText || cellText === name || cellText === position ||
+              cellText === year || cellText === height || cellText === weight) {
+            usedIndices.add(c);
+          }
+        });
+
+        let extraFields = [];
+        cells.each((c, cell) => {
+          if (!usedIndices.has(c)) {
+            const cellText = $(cell).text().trim().split('\n')[0].trim()
+              .replace(/\s*(Twitter|Instagram|Facebook|Opens in|X Opens|Inflcr).*$/i, '').trim();
+            if (cellText && cellText.length > 1 &&
+                !/^(QB|RB|WR|TE|OL|DL|LB|CB|S|K|P|Name|Pos|Position|Yr|Year|Ht|Wt|\#|No)\.?$/i.test(cellText)) {
+              extraFields.push(cellText);
+            }
+          }
+        });
+
+        // Assign extra fields to hometown/highschool/previous
+        if (extraFields.length > 0) hometown = extraFields[0] || '';
+        if (extraFields.length > 1) highSchool = extraFields[1] || '';
+        if (extraFields.length > 2) previousSchool = extraFields[2] || '';
+
         players.push({
           name,
           number,
@@ -194,9 +276,9 @@ export default async function handler(req, res) {
           year: normalizeYear(year),
           height: height || '',
           weight: weight || '',
-          hometown: hometown || '',
-          highSchool: highSchool || '',
-          previousSchool: previousSchool || '',
+          hometown,
+          highSchool,
+          previousSchool,
           url: playerUrl
         });
       });
