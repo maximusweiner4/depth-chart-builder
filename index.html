@@ -718,11 +718,12 @@
         else if (positionToSearch.startsWith('LB-')) positionToSearch = 'LB';
         else if (positionToSearch.startsWith('DE-')) positionToSearch = 'DE';
         else if (positionToSearch.startsWith('DT-')) positionToSearch = 'DT';
+        else if (positionToSearch.startsWith('NT-') || positionToSearch === 'NT') positionToSearch = 'NT';
 
-        // Allow DL players to appear in DE and DT positions
+        // Allow DL, DE, DT, NT players to appear in any defensive line position
         const positionsToMatch = [positionToSearch];
-        if (positionToSearch === 'DE' || positionToSearch === 'DT') {
-          positionsToMatch.push('DL');
+        if (positionToSearch === 'DE' || positionToSearch === 'DT' || positionToSearch === 'NT') {
+          positionsToMatch.push('DL', 'DE', 'DT', 'NT', 'EDGE');
         }
 
         const allPlayers = this.roster.filter(p => positionsToMatch.includes(p.position));
@@ -1117,6 +1118,7 @@
           'DL': [
             { key: 'DE-1', name: 'DE (L)', depth: 3 },
             { key: 'DT-1', name: 'DT (L)', depth: 3 },
+            { key: 'NT', name: 'NT (Nose)', depth: 3 },
             { key: 'DT-2', name: 'DT (R)', depth: 3 },
             { key: 'DE-2', name: 'DE (R)', depth: 3 }
           ],
