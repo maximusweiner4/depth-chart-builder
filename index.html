@@ -706,6 +706,8 @@
       getAvailablePlayers(posCode) {
         let positionToSearch = posCode.replace('-R', '');
         if (positionToSearch.startsWith('WR-')) positionToSearch = 'WR';
+        else if (positionToSearch.startsWith('TE-')) positionToSearch = 'TE';
+        else if (positionToSearch.startsWith('RB-')) positionToSearch = 'RB';
         else if (['OT', 'OG', 'C'].includes(positionToSearch)) positionToSearch = 'OL';
         else if (positionToSearch.startsWith('CB-')) positionToSearch = 'CB';
         else if (positionToSearch.startsWith('S-')) positionToSearch = 'S';
