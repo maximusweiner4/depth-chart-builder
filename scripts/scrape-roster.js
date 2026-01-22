@@ -161,19 +161,75 @@ async function scrapeRoster() {
     const players = await page.evaluate(() => {
       const playerList = [];
 
-      // Target the roster table specifically (not staff table)
-      // The roster table is inside .roster-players section
-      const rosterSection = document.querySelector('.roster-players, .s-person-listing, [class*="roster-list"], table[class*="roster"]');
+      // Helper: Check if text looks like a school name (high school, academy, etc.)
+      const looksLikeSchoolName = (text) => {
+        if (!text) return false;
+        const schoolPatterns = /\b(high school|h\.s\.|hs|academy|prep|school|christian|catholic|central|north|south|east|west|regional|county)\b/i;
+        const stateAbbrevs = /,\s*[A-Z]{2}$/;
+        return schoolPatterns.test(text) || (stateAbbrevs.test(text) && text.split(/\s+/).length > 3);
+      };
+
+      // Helper: Check if text looks like a player name
+      const looksLikePlayerName = (text) => {
+        if (!text || text.length < 3 || text.length > 50) return false;
+        // Should be 2-4 words, mostly letters, may have Jr./Sr./II/III
+        const words = text.trim().split(/\s+/);
+        if (words.length < 1 || words.length > 5) return false;
+        // Exclude common non-name patterns
+        const excludePatterns = /\b(roster|bio|stats|schedule|news|staff|coach|coordinator|director|analyst|assistant|trainer|manager|operations)\b/i;
+        if (excludePatterns.test(text)) return false;
+        // Should start with capital letter
+        if (!/^[A-Z]/.test(text)) return false;
+        return true;
+      };
+
+      // Helper: Check if we're in a staff/coach section
+      const isInStaffSection = (element) => {
+        let parent = element;
+        for (let i = 0; i < 10 && parent; i++) {
+          const className = parent.className || '';
+          const id = parent.id || '';
+          const text = parent.querySelector('h1, h2, h3, h4')?.textContent || '';
+          if (/staff|coach|directory/i.test(className + id + text)) {
+            return true;
+          }
+          parent = parent.parentElement;
+        }
+        return false;
+      };
+
+      // Target the roster section specifically (not staff)
+      const rosterSelectors = [
+        '.roster-players',
+        '.s-person-listing',
+        '[class*="roster-list"]',
+        'table[class*="roster"]',
+        '[data-roster]',
+        '#roster',
+        '.roster'
+      ];
+
+      let rosterSection = null;
+      for (const selector of rosterSelectors) {
+        const el = document.querySelector(selector);
+        if (el && !isInStaffSection(el)) {
+          rosterSection = el;
+          break;
+        }
+      }
 
       // Try table extraction first
       const tableRows = rosterSection
         ? rosterSection.querySelectorAll('table tbody tr')
-        : document.querySelectorAll('.roster-players table tbody tr, [class*="roster"] table tbody tr, table.sidearm-table tbody tr');
+        : document.querySelectorAll('.roster-players table tbody tr, [class*="roster"] table tbody tr:not([class*="staff"]), table.sidearm-table tbody tr');
 
       console.log(`Found ${tableRows.length} table rows`);
 
       if (tableRows.length > 0) {
         tableRows.forEach(row => {
+          // Skip if in staff section
+          if (isInStaffSection(row)) return;
+
           // Get all cells (td and th)
           const cells = row.querySelectorAll('td, th');
           if (cells.length < 3) return;
@@ -190,17 +246,54 @@ async function scrapeRoster() {
             }
           }
 
-          // Get name and URL from the link
-          const nameLink = row.querySelector('a[href*="/roster/"], a[href*="/player/"], a.table__roster-name');
-          const name = nameLink?.textContent?.trim() || '';
-          const playerUrl = nameLink?.getAttribute('href') || '';
+          // Get name and URL from the link - prioritize player-specific selectors
+          // Try multiple selectors in order of specificity
+          const nameSelectors = [
+            'a.table__roster-name',
+            'a[class*="roster-name"]',
+            'a[class*="player-name"]',
+            'th a[href*="/roster/"]',
+            'td:nth-child(2) a[href*="/roster/"]',
+            'a[href*="/roster/player/"]',
+            'a[href*="/sports/football/roster/"][href*="player"]'
+          ];
+
+          let nameLink = null;
+          let name = '';
+          let playerUrl = '';
+
+          for (const selector of nameSelectors) {
+            nameLink = row.querySelector(selector);
+            if (nameLink) {
+              const candidateName = nameLink.textContent?.trim() || '';
+              // Verify it looks like a player name, not a school
+              if (looksLikePlayerName(candidateName) && !looksLikeSchoolName(candidateName)) {
+                name = candidateName;
+                playerUrl = nameLink.getAttribute('href') || '';
+                break;
+              }
+            }
+          }
+
+          // Fallback: try any roster link but validate the name
+          if (!name) {
+            const allLinks = row.querySelectorAll('a[href*="/roster/"], a[href*="/player/"]');
+            for (const link of allLinks) {
+              const candidateName = link.textContent?.trim() || '';
+              if (looksLikePlayerName(candidateName) && !looksLikeSchoolName(candidateName)) {
+                name = candidateName;
+                playerUrl = link.getAttribute('href') || '';
+                break;
+              }
+            }
+          }
 
           // Get position - look for cell with position abbreviation
           let position = '';
-          const posRegex = /\b(QB|RB|FB|WR|TE|OL|OT|OG|DL|DT|NT|DE|LB|ILB|OLB|MLB|DB|CB|S|SS|FS|K|PK|P|LS|SNP|C|ATH)\b/i;
+          const posRegex = /^(QB|RB|FB|WR|TE|OL|OT|OG|DL|DT|NT|DE|LB|ILB|OLB|MLB|DB|CB|S|SS|FS|K|PK|P|LS|SNP|C|ATH)$/i;
           for (const cell of cells) {
             const text = cell.textContent.trim();
-            if (text.length <= 4 && posRegex.test(text)) {
+            if (posRegex.test(text)) {
               position = text.toUpperCase();
               break;
             }
@@ -217,9 +310,9 @@ async function scrapeRoster() {
             }
           }
 
-          // Get height - look for pattern like 6-2, 5-11
+          // Get height - look for pattern like 6-2, 5-11, 6'2"
           let height = '';
-          const heightRegex = /\b(\d['′']-\d{1,2})\b/;
+          const heightRegex = /\b(\d['′'"-]\d{1,2}["″]?)\b/;
           for (const cell of cells) {
             const match = cell.textContent.match(heightRegex);
             if (match) {
@@ -242,21 +335,35 @@ async function scrapeRoster() {
             }
           }
 
-          // Get hometown
+          // Get hometown - look for City, State pattern
           let hometown = '';
           const hometownCell = Array.from(cells).find(cell => {
-            const text = cell.textContent;
-            return text.includes(',') && /[A-Z][a-z]+,\s*[A-Z]/.test(text);
+            const text = cell.textContent.trim();
+            // Match "City, ST" or "City, State" pattern but not school names
+            return /^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2}(?:\s|$)/.test(text) ||
+                   /^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z][a-z]+$/.test(text);
           });
-          if (hometownCell) {
+          if (hometownCell && !looksLikeSchoolName(hometownCell.textContent)) {
             hometown = hometownCell.textContent.trim();
           }
 
-          // Get high school (usually after hometown)
+          // Get high school and previous school
           let highSchool = '';
           let previousSchool = '';
 
-          if (name && name.length > 2 && name.length < 50 && !name.toLowerCase().includes('roster')) {
+          // Look for cells that contain school-like names
+          for (const cell of cells) {
+            const text = cell.textContent.trim();
+            if (looksLikeSchoolName(text) && text !== name) {
+              if (!highSchool) {
+                highSchool = text;
+              } else if (!previousSchool) {
+                previousSchool = text;
+              }
+            }
+          }
+
+          if (name && looksLikePlayerName(name)) {
             playerList.push({
               name,
               number,
@@ -279,9 +386,33 @@ async function scrapeRoster() {
         console.log(`Found ${playerCards.length} player cards`);
 
         playerCards.forEach(card => {
-          const nameEl = card.querySelector('a[href*="/roster/"], a[href*="/player/"], [class*="name"]');
-          const name = nameEl?.textContent?.trim() || '';
-          const playerUrl = nameEl?.getAttribute('href') || '';
+          // Skip staff sections
+          if (isInStaffSection(card)) return;
+
+          // Try multiple name selectors
+          const nameSelectors = [
+            'a[class*="name"]',
+            'a[href*="/roster/player/"]',
+            'a[href*="/roster/"]',
+            '[class*="name"]'
+          ];
+
+          let name = '';
+          let playerUrl = '';
+
+          for (const selector of nameSelectors) {
+            const el = card.querySelector(selector);
+            if (el) {
+              const candidateName = el.textContent?.trim() || '';
+              if (looksLikePlayerName(candidateName) && !looksLikeSchoolName(candidateName)) {
+                name = candidateName;
+                playerUrl = el.getAttribute?.('href') || '';
+                break;
+              }
+            }
+          }
+
+          if (!name) return;
 
           const text = card.textContent;
 
@@ -294,36 +425,42 @@ async function scrapeRoster() {
           const yearMatch = text.match(/\b(Fr\.|So\.|Jr\.|Sr\.|Freshman|Sophomore|Junior|Senior|R-Fr\.|R-So\.|R-Jr\.|R-Sr\.|Graduate|Grad)\b/i);
           const year = yearMatch ? yearMatch[1] : '';
 
-          const heightMatch = text.match(/\b(\d['′']-\d{1,2})\b/);
+          const heightMatch = text.match(/\b(\d['′'"-]\d{1,2}["″]?)\b/);
           const height = heightMatch ? heightMatch[1] : '';
 
           const weightMatch = text.match(/\b(\d{2,3})\s*lbs?\b/i);
           const weight = weightMatch ? weightMatch[1] + ' lbs' : '';
 
-          if (name && name.length > 2 && name.length < 50) {
-            playerList.push({
-              name,
-              number,
-              position,
-              year,
-              height,
-              weight,
-              hometown: '',
-              highSchool: '',
-              previousSchool: '',
-              playerUrl
-            });
-          }
+          playerList.push({
+            name,
+            number,
+            position,
+            year,
+            height,
+            weight,
+            hometown: '',
+            highSchool: '',
+            previousSchool: '',
+            playerUrl
+          });
         });
       }
 
-      // If still no players, try generic link extraction
+      // If still no players, try generic link extraction with better filtering
       if (playerList.length === 0) {
         const playerLinks = document.querySelectorAll('a[href*="/sports/football/roster/player/"], a[href*="/roster/player/"]');
         console.log(`Found ${playerLinks.length} player links`);
 
         playerLinks.forEach(link => {
-          const name = link.textContent.trim();
+          // Skip staff sections
+          if (isInStaffSection(link)) return;
+
+          const candidateName = link.textContent.trim();
+
+          // Validate name
+          if (!looksLikePlayerName(candidateName) || looksLikeSchoolName(candidateName)) return;
+
+          const name = candidateName;
           const playerUrl = link.getAttribute('href') || '';
           const container = link.closest('tr, li, article, [class*="card"], [class*="player"]');
           const text = container?.textContent || '';
@@ -337,20 +474,18 @@ async function scrapeRoster() {
           const yearMatch = text.match(/\b(Fr\.|So\.|Jr\.|Sr\.|Freshman|Sophomore|Junior|Senior|R-Fr\.|R-So\.|R-Jr\.|R-Sr\.|Graduate|Grad)\b/i);
           const year = yearMatch ? yearMatch[1] : '';
 
-          if (name && name.length > 2 && name.length < 50 && !name.toLowerCase().includes('roster') && !name.toLowerCase().includes('bio')) {
-            playerList.push({
-              name,
-              number,
-              position,
-              year,
-              height: '',
-              weight: '',
-              hometown: '',
-              highSchool: '',
-              previousSchool: '',
-              playerUrl
-            });
-          }
+          playerList.push({
+            name,
+            number,
+            position,
+            year,
+            height: '',
+            weight: '',
+            hometown: '',
+            highSchool: '',
+            previousSchool: '',
+            playerUrl
+          });
         });
       }
 
