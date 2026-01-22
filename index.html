@@ -410,6 +410,10 @@
         this.draggedPlayer = null;
         this.dragOverPosition = null;
 
+        // Quick depth reorder
+        this.showDepthReorderModal = false;
+        this.selectedPositionGroup = null;
+
         // Formation state
         this.offenseFormation = 'pro';
         this.defenseFormation = 'nickel';
@@ -951,6 +955,212 @@
         return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
       }
 
+      // Get roster statistics by position group
+      getRosterStats() {
+        const stats = {};
+        const groups = {
+          'QB': ['QB'],
+          'RB': ['RB', 'FB'],
+          'WR': ['WR'],
+          'TE': ['TE'],
+          'OL': ['OL', 'OT', 'OG', 'C'],
+          'DL': ['DL', 'DT', 'DE', 'NT', 'EDGE'],
+          'LB': ['LB', 'ILB', 'OLB', 'MLB'],
+          'CB': ['CB', 'DB'],
+          'S': ['S', 'SS', 'FS'],
+          'K': ['K', 'PK'],
+          'P': ['P'],
+          'LS': ['LS', 'SNP']
+        };
+
+        for (const [group, positions] of Object.entries(groups)) {
+          stats[group] = this.roster.filter(p => positions.includes(p.position)).length;
+        }
+        return stats;
+      }
+
+      // Get progress statistics - positions filled vs total
+      getProgressStats() {
+        let filled = 0;
+        let total = 0;
+
+        // Count positions for current formation
+        const offensePositions = FORMATIONS.offense[this.offenseFormation]?.positions || [];
+        const defensePositions = FORMATIONS.defense[this.defenseFormation]?.positions || [];
+        const specialPositions = POSITIONS.special || [];
+
+        const allPositions = [...offensePositions, ...defensePositions, ...specialPositions];
+
+        for (const pos of allPositions) {
+          const posKey = pos.isRight ? `${pos.code}-R` : pos.code;
+          const depth = pos.depth || 3;
+
+          for (let d = 0; d < Math.min(depth, 3); d++) {
+            total++;
+            if (this.depthChart[posKey]?.[d]) {
+              filled++;
+            }
+          }
+        }
+
+        return { filled, total, percentage: total > 0 ? Math.round((filled / total) * 100) : 0 };
+      }
+
+      // Detect position mismatches between roster and depth chart needs
+      getPositionMismatches() {
+        const mismatches = [];
+        const stats = this.getRosterStats();
+
+        // Check for common mismatches
+        if (stats['DL'] > 0 && stats['DL'] === this.roster.filter(p => p.position === 'DL').length) {
+          // All defensive linemen are labeled as generic "DL"
+          const dlCount = stats['DL'];
+          mismatches.push({
+            type: 'dl_generic',
+            message: `${dlCount} player${dlCount > 1 ? 's' : ''} listed as "DL" - they'll appear in both DE and DT positions`,
+            count: dlCount
+          });
+        }
+
+        // Check for missing position groups
+        const neededGroups = ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'CB', 'S'];
+        for (const group of neededGroups) {
+          if (stats[group] === 0) {
+            mismatches.push({
+              type: 'missing',
+              message: `No ${group} players in roster`,
+              group
+            });
+          }
+        }
+
+        return mismatches;
+      }
+
+      // Get available positions for a player position type
+      getMatchingDepthChartPositions(playerPosition) {
+        const mapping = {
+          'QB': ['QB'],
+          'RB': ['RB', 'FB'],
+          'FB': ['FB', 'RB'],
+          'WR': ['WR-X', 'WR-Z', 'WR-SLOT', 'WR-SLOT-R'],
+          'TE': ['TE', 'TE-2'],
+          'OL': ['OT', 'OG', 'C'],
+          'OT': ['OT'],
+          'OG': ['OG'],
+          'C': ['C'],
+          'DL': ['DE-1', 'DE-2', 'DT-1', 'DT-2'],
+          'DE': ['DE-1', 'DE-2'],
+          'DT': ['DT-1', 'DT-2'],
+          'EDGE': ['DE-1', 'DE-2'],
+          'LB': ['LB-ILB', 'LB-OLB'],
+          'ILB': ['LB-ILB'],
+          'OLB': ['LB-OLB'],
+          'CB': ['CB-X', 'CB-Y', 'CB-SLOT'],
+          'DB': ['CB-X', 'CB-Y', 'CB-SLOT', 'S-FS', 'S-SS'],
+          'S': ['S-FS', 'S-SS'],
+          'FS': ['S-FS'],
+          'SS': ['S-SS'],
+          'K': ['K'],
+          'P': ['P'],
+          'LS': ['LS']
+        };
+        return mapping[playerPosition] || [];
+      }
+
+      // Open depth reorder modal for a position group
+      openDepthReorder(positionGroup) {
+        this.selectedPositionGroup = positionGroup;
+        this.showDepthReorderModal = true;
+        this.render();
+      }
+
+      // Get all players for a position group
+      getPlayersForGroup(group) {
+        const groupMapping = {
+          'QB': ['QB'],
+          'RB': ['RB', 'FB'],
+          'WR': ['WR'],
+          'TE': ['TE'],
+          'OL': ['OL', 'OT', 'OG', 'C'],
+          'DL': ['DL', 'DT', 'DE', 'NT', 'EDGE'],
+          'LB': ['LB', 'ILB', 'OLB', 'MLB'],
+          'CB': ['CB', 'DB'],
+          'S': ['S', 'SS', 'FS'],
+          'K': ['K', 'PK'],
+          'P': ['P'],
+          'LS': ['LS', 'SNP']
+        };
+        const positions = groupMapping[group] || [group];
+        return this.roster.filter(p => positions.includes(p.position));
+      }
+
+      // Get depth chart slots for a position group
+      getDepthSlotsForGroup(group) {
+        const slotMapping = {
+          'QB': [{ key: 'QB', name: 'QB', depth: 2 }],
+          'RB': [{ key: 'RB', name: 'RB', depth: 3 }, { key: 'FB', name: 'FB', depth: 2 }],
+          'WR': [
+            { key: 'WR-X', name: 'X (Split End)', depth: 3 },
+            { key: 'WR-Z', name: 'Z (Flanker)', depth: 3 },
+            { key: 'WR-SLOT', name: 'Slot L', depth: 3 },
+            { key: 'WR-SLOT-R', name: 'Slot R', depth: 3 }
+          ],
+          'TE': [{ key: 'TE', name: 'TE', depth: 2 }, { key: 'TE-2', name: 'TE2', depth: 2 }],
+          'OL': [
+            { key: 'OT', name: 'LT', depth: 4 },
+            { key: 'OG', name: 'LG', depth: 4 },
+            { key: 'C', name: 'C', depth: 3 },
+            { key: 'OG-R', name: 'RG', depth: 4 },
+            { key: 'OT-R', name: 'RT', depth: 4 }
+          ],
+          'DL': [
+            { key: 'DE-1', name: 'DE (L)', depth: 3 },
+            { key: 'DT-1', name: 'DT (L)', depth: 3 },
+            { key: 'DT-2', name: 'DT (R)', depth: 3 },
+            { key: 'DE-2', name: 'DE (R)', depth: 3 }
+          ],
+          'LB': [
+            { key: 'LB-OLB', name: 'OLB/WILL', depth: 3 },
+            { key: 'LB-ILB', name: 'ILB/MIKE', depth: 3 }
+          ],
+          'CB': [
+            { key: 'CB-X', name: 'CB1', depth: 3 },
+            { key: 'CB-Y', name: 'CB2', depth: 3 },
+            { key: 'CB-SLOT', name: 'Nickel', depth: 2 }
+          ],
+          'S': [
+            { key: 'S-FS', name: 'FS', depth: 3 },
+            { key: 'S-SS', name: 'SS', depth: 3 }
+          ],
+          'K': [{ key: 'K', name: 'K', depth: 2 }],
+          'P': [{ key: 'P', name: 'P', depth: 2 }],
+          'LS': [{ key: 'LS', name: 'LS', depth: 2 }]
+        };
+        return slotMapping[group] || [];
+      }
+
+      // Assign player to a slot from reorder modal
+      assignFromReorder(slotKey, depthIndex, player) {
+        this.saveStateForUndo();
+        if (!this.depthChart[slotKey]) {
+          this.depthChart[slotKey] = [];
+        }
+        this.depthChart[slotKey][depthIndex] = player;
+        this.autoSave();
+        this.render();
+      }
+
+      // Remove player from slot in reorder modal
+      removeFromReorder(slotKey, depthIndex) {
+        this.saveStateForUndo();
+        if (this.depthChart[slotKey]) {
+          this.depthChart[slotKey][depthIndex] = null;
+        }
+        this.autoSave();
+        this.render();
+      }
+
       render() {
         const app = document.getElementById('app');
 
@@ -976,6 +1186,7 @@
           ${this.showImportModal ? this.renderImportModal() : ''}
           ${this.showResetModal ? this.renderResetModal() : ''}
           ${this.showAppResetModal ? this.renderAppResetModal() : ''}
+          ${this.showDepthReorderModal ? this.renderDepthReorderModal() : ''}
         `;
         this.attachEventListeners();
       }
@@ -1317,9 +1528,14 @@
       }
 
       renderHeader() {
+        const stats = this.getRosterStats();
+        const progress = this.getProgressStats();
+        const mismatches = this.getPositionMismatches();
+        const totalPlayers = this.roster.length;
+
         return `
           <div class="bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg shadow-lg p-6 mb-6 border-4" style="border-color: ${this.team.primaryColor};">
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between flex-wrap gap-4">
               <div class="flex items-center gap-4">
                 <div class="w-16 h-16 rounded-full flex items-center justify-center text-white font-display font-bold text-xl flex-shrink-0 shadow-lg" style="background: ${this.team.primaryColor};">
                   <span>${this.team.name.split(' ').map(w => w[0]).join('').substring(0, 3)}</span>
@@ -1354,6 +1570,64 @@
                 </button>
               </div>
             </div>
+
+            ${totalPlayers > 0 ? `
+              <!-- Roster Stats & Progress -->
+              <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <!-- Progress Bar -->
+                <div class="mb-3">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Depth Chart Progress</span>
+                    <span class="text-sm font-bold" style="color: ${this.team.primaryColor};">${progress.filled}/${progress.total} positions (${progress.percentage}%)</span>
+                  </div>
+                  <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                    <div class="h-2.5 rounded-full transition-all duration-300" style="width: ${progress.percentage}%; background: ${this.team.primaryColor};"></div>
+                  </div>
+                </div>
+
+                <!-- Roster Stats Pills (clickable for quick reorder) -->
+                <div class="flex flex-wrap gap-2 items-center">
+                  <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 py-1">ROSTER (${totalPlayers}):</span>
+                  ${Object.entries(stats).filter(([_, count]) => count > 0).map(([pos, count]) => `
+                    <button
+                      onclick="app.openDepthReorder('${pos}')"
+                      class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold transition-colors hover:ring-2 hover:ring-offset-1 ${
+                        count > 0 ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600' : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                      }"
+                      style="--tw-ring-color: ${this.team.primaryColor};"
+                      title="Click to reorder ${pos} depth"
+                    >
+                      ${pos}: ${count}
+                    </button>
+                  `).join('')}
+                  <span class="text-xs text-gray-400 dark:text-gray-500 ml-2">(click to reorder)</span>
+                </div>
+
+                <!-- Position Mismatch Warnings -->
+                ${mismatches.length > 0 ? `
+                  <div class="mt-3 space-y-2">
+                    ${mismatches.slice(0, 3).map(m => `
+                      <div class="flex items-start gap-2 text-sm ${m.type === 'missing' ? 'text-amber-600 dark:text-amber-400' : 'text-blue-600 dark:text-blue-400'}">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="flex-shrink-0 mt-0.5">
+                          ${m.type === 'missing'
+                            ? '<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'
+                            : '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>'
+                          }
+                        </svg>
+                        <span>${m.message}</span>
+                      </div>
+                    `).join('')}
+                  </div>
+                ` : ''}
+              </div>
+            ` : `
+              <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <p class="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                  No roster imported yet. Click <strong>Import</strong> to add players.
+                </p>
+              </div>
+            `}
           </div>
         `;
       }
@@ -1652,12 +1926,7 @@
                   </div>
                 ` : ''}
 
-                ${availablePlayers.length === 0 ? `
-                  <div class="text-center py-8">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-gray-300 dark:text-gray-600 mb-3"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                    <p class="text-gray-500 dark:text-gray-400">${this.searchQuery ? 'No players match your search' : 'No available players for this position'}</p>
-                  </div>
-                ` : `
+                ${availablePlayers.length === 0 ? this.renderEmptyPlayerState(position) : `
                   <div class="space-y-2">
                     ${availablePlayers.map((player, i) => `
                       <button
@@ -1683,6 +1952,130 @@
                 `}
               </div>
             </div>
+          </div>
+        `;
+      }
+
+      renderEmptyPlayerState(position) {
+        if (this.searchQuery) {
+          return `
+            <div class="text-center py-8">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-gray-300 dark:text-gray-600 mb-3"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <p class="text-gray-500 dark:text-gray-400 font-semibold">No players match "${this.searchQuery}"</p>
+              <p class="text-gray-400 dark:text-gray-500 text-sm mt-1">Try a different search term</p>
+            </div>
+          `;
+        }
+
+        // Determine what positions would match this slot
+        const posBase = position.replace('-R', '').replace(/-\d+$/, '');
+        const positionNames = {
+          'QB': 'Quarterback (QB)',
+          'RB': 'Running Back (RB)',
+          'FB': 'Fullback (FB, RB)',
+          'WR': 'Wide Receiver (WR)',
+          'TE': 'Tight End (TE)',
+          'OT': 'Offensive Tackle (OL, OT)',
+          'OG': 'Offensive Guard (OL, OG)',
+          'C': 'Center (OL, C)',
+          'DE': 'Defensive End (DE, DL, EDGE)',
+          'DT': 'Defensive Tackle (DT, DL, NT)',
+          'LB': 'Linebacker (LB, ILB, OLB, MLB)',
+          'CB': 'Cornerback (CB, DB)',
+          'S': 'Safety (S, FS, SS)',
+          'K': 'Kicker (K, PK)',
+          'P': 'Punter (P)',
+          'LS': 'Long Snapper (LS, SNP)'
+        };
+
+        const expectedPositions = positionNames[posBase] || posBase;
+        const stats = this.getRosterStats();
+        const rosterTotal = this.roster.length;
+
+        // Check if all players are already assigned
+        const allAssigned = [];
+        Object.values(this.depthChart).forEach(depthArray => {
+          depthArray.forEach(player => {
+            if (player) allAssigned.push(player);
+          });
+        });
+
+        // Get players that match this position (before filtering out assigned)
+        let matchingPos = posBase;
+        if (posBase.startsWith('WR')) matchingPos = 'WR';
+        else if (posBase.startsWith('TE')) matchingPos = 'TE';
+        else if (posBase.startsWith('RB') || posBase === 'FB') matchingPos = 'RB';
+        else if (['OT', 'OG', 'C'].includes(posBase)) matchingPos = 'OL';
+        else if (posBase.startsWith('CB')) matchingPos = 'CB';
+        else if (posBase.startsWith('S-')) matchingPos = 'S';
+        else if (posBase.startsWith('LB')) matchingPos = 'LB';
+        else if (posBase.startsWith('DE')) matchingPos = 'DE';
+        else if (posBase.startsWith('DT')) matchingPos = 'DT';
+
+        const matchingPlayers = this.roster.filter(p => {
+          if (matchingPos === 'DE' || matchingPos === 'DT') {
+            return ['DE', 'DT', 'DL', 'EDGE', 'NT'].includes(p.position);
+          }
+          if (matchingPos === 'OL') {
+            return ['OL', 'OT', 'OG', 'C'].includes(p.position);
+          }
+          if (matchingPos === 'CB') {
+            return ['CB', 'DB'].includes(p.position);
+          }
+          if (matchingPos === 'S') {
+            return ['S', 'SS', 'FS', 'DB'].includes(p.position);
+          }
+          if (matchingPos === 'RB') {
+            return ['RB', 'FB'].includes(p.position);
+          }
+          return p.position === matchingPos;
+        });
+
+        const assignedCount = matchingPlayers.filter(p =>
+          allAssigned.some(a => a.number === p.number && a.name === p.name)
+        ).length;
+
+        if (rosterTotal === 0) {
+          return `
+            <div class="text-center py-8">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-amber-400 mb-3"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+              <p class="text-gray-700 dark:text-gray-300 font-semibold">No roster imported</p>
+              <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">Import a roster to start adding players</p>
+              <button onclick="app.showPlayerModal = false; app.showImportModal = true; app.render()" class="mt-3 px-4 py-2 text-white rounded-lg text-sm font-semibold" style="background: ${this.team.primaryColor};">
+                Import Roster
+              </button>
+            </div>
+          `;
+        }
+
+        if (matchingPlayers.length === 0) {
+          return `
+            <div class="text-center py-8">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-amber-400 mb-3"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <p class="text-gray-700 dark:text-gray-300 font-semibold">No ${expectedPositions} in roster</p>
+              <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">Your roster doesn't have players with matching positions</p>
+              <div class="mt-3 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg text-left text-sm">
+                <p class="text-gray-600 dark:text-gray-400 mb-2">Players need one of these positions:</p>
+                <p class="font-mono text-xs text-gray-500">${expectedPositions}</p>
+              </div>
+            </div>
+          `;
+        }
+
+        if (assignedCount === matchingPlayers.length) {
+          return `
+            <div class="text-center py-8">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-green-500 mb-3"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              <p class="text-gray-700 dark:text-gray-300 font-semibold">All ${matchingPos} players assigned!</p>
+              <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">${assignedCount} of ${matchingPlayers.length} players are on the depth chart</p>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="text-center py-8">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-gray-300 dark:text-gray-600 mb-3"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            <p class="text-gray-500 dark:text-gray-400">No available players for this position</p>
           </div>
         `;
       }
@@ -1765,6 +2158,137 @@
                   <button onclick="app.showAppResetModal = false; app.render()" class="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-600">Cancel</button>
                   <button onclick="app.confirmAppReset()" class="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold">Reset App</button>
                 </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      renderDepthReorderModal() {
+        if (!this.selectedPositionGroup) return '';
+
+        const group = this.selectedPositionGroup;
+        const players = this.getPlayersForGroup(group);
+        const slots = this.getDepthSlotsForGroup(group);
+
+        // Get currently assigned players
+        const assignedPlayerKeys = new Set();
+        Object.values(this.depthChart).forEach(depthArray => {
+          depthArray?.forEach(player => {
+            if (player) assignedPlayerKeys.add(`${player.number}-${player.name}`);
+          });
+        });
+
+        // Filter to unassigned players for this group
+        const unassignedPlayers = players.filter(p => !assignedPlayerKeys.has(`${p.number}-${p.name}`));
+
+        return `
+          <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { app.showDepthReorderModal = false; app.selectedPositionGroup = null; app.render(); }">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+              <div class="p-4 border-b dark:border-gray-700 flex items-center justify-between text-white" style="background: ${this.team.primaryColor};">
+                <div>
+                  <h2 class="font-display text-xl font-bold">${group} Depth Chart</h2>
+                  <p class="text-sm text-white/70">${players.length} players in roster</p>
+                </div>
+                <button onclick="app.showDepthReorderModal = false; app.selectedPositionGroup = null; app.render()" class="text-white/80 hover:text-white p-1">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+
+              <div class="p-4 overflow-y-auto flex-1">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <!-- Position Slots -->
+                  <div>
+                    <h3 class="font-display font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                      Depth Chart Slots
+                    </h3>
+                    <div class="space-y-4">
+                      ${slots.map(slot => `
+                        <div class="border dark:border-gray-700 rounded-lg overflow-hidden">
+                          <div class="px-3 py-2 text-sm font-semibold text-white" style="background: ${this.team.primaryColor};">
+                            ${slot.name}
+                          </div>
+                          <div class="divide-y dark:divide-gray-700">
+                            ${[0, 1, 2].slice(0, slot.depth).map(d => {
+                              const player = this.depthChart[slot.key]?.[d];
+                              return `
+                                <div class="p-2 flex items-center gap-2 ${player ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'}">
+                                  <span class="w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center ${d === 0 ? 'bg-yellow-400 text-yellow-900' : d === 1 ? 'bg-gray-300 text-gray-700' : 'bg-amber-600 text-white'}">
+                                    ${d + 1}
+                                  </span>
+                                  ${player ? `
+                                    <div class="flex-1">
+                                      <span class="font-semibold text-gray-900 dark:text-white text-sm">#${player.number} ${player.name}</span>
+                                      <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">${player.year || ''}</span>
+                                    </div>
+                                    <button onclick="app.removeFromReorder('${slot.key}', ${d})" class="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded" title="Remove">
+                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    </button>
+                                  ` : `
+                                    <span class="flex-1 text-gray-400 dark:text-gray-500 text-sm italic">Empty - select from available players</span>
+                                  `}
+                                </div>
+                              `;
+                            }).join('')}
+                          </div>
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+
+                  <!-- Available Players -->
+                  <div>
+                    <h3 class="font-display font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                      Available Players (${unassignedPlayers.length})
+                    </h3>
+                    ${unassignedPlayers.length === 0 ? `
+                      <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto mb-3 text-green-500"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        <p class="font-semibold">All ${group} players assigned!</p>
+                      </div>
+                    ` : `
+                      <div class="space-y-2 max-h-96 overflow-y-auto">
+                        ${unassignedPlayers.map(player => `
+                          <div class="border dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/50">
+                            <div class="flex items-center gap-3 mb-2">
+                              <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold" style="background: ${this.team.primaryColor};">
+                                ${this.getPlayerInitials(player.name)}
+                              </div>
+                              <div class="flex-1">
+                                <div class="font-semibold text-gray-900 dark:text-white">#${player.number} ${player.name}</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">${player.position} • ${player.year}${player.height ? ` • ${player.height}` : ''}${player.weight ? ` • ${player.weight}` : ''}</div>
+                              </div>
+                            </div>
+                            <div class="flex flex-wrap gap-1">
+                              ${slots.map(slot => `
+                                ${[0, 1, 2].slice(0, slot.depth).map(d => {
+                                  const occupied = this.depthChart[slot.key]?.[d];
+                                  return !occupied ? `
+                                    <button
+                                      onclick="app.assignFromReorder('${slot.key}', ${d}, ${JSON.stringify(player).replace(/"/g, '&quot;')})"
+                                      class="px-2 py-1 text-xs rounded border hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                                      style="border-color: ${this.team.primaryColor}; color: ${this.team.primaryColor};"
+                                    >
+                                      ${slot.name} #${d + 1}
+                                    </button>
+                                  ` : '';
+                                }).join('')}
+                              `).join('')}
+                            </div>
+                          </div>
+                        `).join('')}
+                      </div>
+                    `}
+                  </div>
+                </div>
+              </div>
+
+              <div class="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                <button onclick="app.showDepthReorderModal = false; app.selectedPositionGroup = null; app.render()" class="w-full py-2 text-white rounded-lg font-semibold" style="background: ${this.team.primaryColor};">
+                  Done
+                </button>
               </div>
             </div>
           </div>
