@@ -725,30 +725,54 @@
         if (positionToSearch === 'DE' || positionToSearch === 'DT' || positionToSearch === 'NT') {
           positionsToMatch.push('DL', 'DE', 'DT', 'NT', 'EDGE');
         }
+        // Allow DB players in CB and S positions
+        if (positionToSearch === 'CB' || positionToSearch === 'S') {
+          positionsToMatch.push('DB');
+        }
 
-        const allPlayers = this.roster.filter(p => positionsToMatch.includes(p.position));
+        let allPlayers = this.roster.filter(p => positionsToMatch.includes(p.position));
 
-        // Get all players assigned to ANY position
-        const allAssigned = [];
-        Object.values(this.depthChart).forEach(depthArray => {
-          depthArray.forEach(player => {
-            if (player) allAssigned.push(player);
+        // Get all players assigned to ANY position with their assignments
+        const assignedMap = new Map();
+        Object.entries(this.depthChart).forEach(([pos, depthArray]) => {
+          depthArray.forEach((player, depth) => {
+            if (player) {
+              const key = `${player.number}-${player.name}`;
+              if (!assignedMap.has(key)) {
+                assignedMap.set(key, []);
+              }
+              assignedMap.get(key).push({ position: pos, depth });
+            }
           });
         });
 
-        let available = allPlayers.filter(p =>
-          !allAssigned.some(a => a.number === p.number && a.name === p.name)
-        );
+        // Mark players as assigned and add their current assignments
+        allPlayers = allPlayers.map(p => {
+          const key = `${p.number}-${p.name}`;
+          const assignments = assignedMap.get(key) || [];
+          return {
+            ...p,
+            isAssigned: assignments.length > 0,
+            assignments: assignments
+          };
+        });
+
+        // Sort: unassigned first, then assigned
+        allPlayers.sort((a, b) => {
+          if (a.isAssigned && !b.isAssigned) return 1;
+          if (!a.isAssigned && b.isAssigned) return -1;
+          return 0;
+        });
 
         if (this.searchQuery.trim()) {
           const query = this.searchQuery.toLowerCase();
-          available = available.filter(p =>
+          allPlayers = allPlayers.filter(p =>
             p.name.toLowerCase().includes(query) ||
             p.number.toString().includes(query)
           );
         }
 
-        return available;
+        return allPlayers;
       }
 
       addPlayer(position, depth, player) {
@@ -954,6 +978,42 @@
 
       getPlayerInitials(name) {
         return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+      }
+
+      // Get display name for a depth chart slot
+      getSlotDisplayName(slotCode) {
+        const slotNames = {
+          'QB': 'QB',
+          'RB': 'RB',
+          'FB': 'FB',
+          'WR-X': 'WR-X',
+          'WR-Z': 'WR-Z',
+          'WR-SLOT': 'Slot WR',
+          'WR-SLOT-R': 'Slot WR',
+          'TE': 'TE',
+          'TE-2': 'TE2',
+          'OT': 'LT',
+          'OT-R': 'RT',
+          'OG': 'LG',
+          'OG-R': 'RG',
+          'C': 'C',
+          'DE-1': 'DE',
+          'DE-2': 'DE',
+          'DT-1': 'DT',
+          'DT-2': 'DT',
+          'NT': 'NT',
+          'LB-ILB': 'ILB',
+          'LB-OLB': 'OLB',
+          'CB-X': 'CB',
+          'CB-Y': 'CB',
+          'CB-SLOT': 'NCB',
+          'S-FS': 'FS',
+          'S-SS': 'SS',
+          'K': 'K',
+          'P': 'P',
+          'LS': 'LS'
+        };
+        return slotNames[slotCode] || slotCode;
       }
 
       // Get roster statistics by position group
@@ -1932,17 +1992,18 @@
                   <div class="space-y-2">
                     ${availablePlayers.map((player, i) => `
                       <button
-                        onclick="app.addPlayer('${position}', ${depth}, ${JSON.stringify(player).replace(/"/g, '&quot;')})"
-                        class="w-full text-left bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 rounded-lg p-3 transition-colors"
+                        onclick="app.addPlayer('${position}', ${depth}, ${JSON.stringify({name: player.name, number: player.number, position: player.position, year: player.year, height: player.height, weight: player.weight, hometown: player.hometown, highSchool: player.highSchool, previousSchool: player.previousSchool, url: player.url}).replace(/"/g, '&quot;')})"
+                        class="w-full text-left ${player.isAssigned ? 'bg-gray-100 dark:bg-gray-800 opacity-60' : 'bg-gray-50 dark:bg-gray-700'} hover:bg-gray-100 dark:hover:bg-gray-600 hover:opacity-100 border border-gray-200 dark:border-gray-600 rounded-lg p-3 transition-all"
                       >
                         <div class="flex items-center gap-3">
-                          <div class="w-10 h-10 bg-gray-200 dark:bg-gray-600 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 text-sm font-semibold">
+                          <div class="w-10 h-10 ${player.isAssigned ? 'bg-gray-300 dark:bg-gray-700' : 'bg-gray-200 dark:bg-gray-600'} rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 text-sm font-semibold">
                             ${this.getPlayerInitials(player.name)}
                           </div>
                           <div class="flex-1">
-                            <div class="font-semibold text-gray-900 dark:text-white">#${player.number} ${player.name}</div>
+                            <div class="font-semibold ${player.isAssigned ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white'}">#${player.number} ${player.name}</div>
                             <div class="text-sm text-gray-500 dark:text-gray-400">${player.position} • ${player.year}${player.height ? ` • ${player.height}` : ''}${player.weight ? ` • ${player.weight}` : ''}</div>
-                            ${player.hometown ? `<div class="text-xs text-gray-400 dark:text-gray-500">${player.hometown}${player.previousSchool ? ` (${player.previousSchool})` : ''}</div>` : ''}
+                            ${player.isAssigned ? `<div class="text-xs text-amber-600 dark:text-amber-400 mt-1">Currently: ${player.assignments.map(a => this.getSlotDisplayName(a.position) + ' #' + (a.depth + 1)).join(', ')}</div>` : ''}
+                            ${!player.isAssigned && player.hometown ? `<div class="text-xs text-gray-400 dark:text-gray-500">${player.hometown}${player.previousSchool ? ` (${player.previousSchool})` : ''}</div>` : ''}
                           </div>
                           ${player.url ? `<a href="${player.url}" target="_blank" onclick="event.stopPropagation()" class="p-1 text-gray-400 hover:text-gray-600" title="View profile">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -2173,16 +2234,36 @@
         const players = this.getPlayersForGroup(group);
         const slots = this.getDepthSlotsForGroup(group);
 
-        // Get currently assigned players
-        const assignedPlayerKeys = new Set();
-        Object.values(this.depthChart).forEach(depthArray => {
-          depthArray?.forEach(player => {
-            if (player) assignedPlayerKeys.add(`${player.number}-${player.name}`);
+        // Get all players assigned to ANY position with their assignments
+        const assignedMap = new Map();
+        Object.entries(this.depthChart).forEach(([pos, depthArray]) => {
+          depthArray?.forEach((player, depth) => {
+            if (player) {
+              const key = `${player.number}-${player.name}`;
+              if (!assignedMap.has(key)) {
+                assignedMap.set(key, []);
+              }
+              assignedMap.get(key).push({ position: pos, depth });
+            }
           });
         });
 
-        // Filter to unassigned players for this group
-        const unassignedPlayers = players.filter(p => !assignedPlayerKeys.has(`${p.number}-${p.name}`));
+        // Mark players with their assigned status and sort unassigned first
+        const allPlayers = players.map(p => {
+          const key = `${p.number}-${p.name}`;
+          const assignments = assignedMap.get(key) || [];
+          return {
+            ...p,
+            isAssigned: assignments.length > 0,
+            assignments: assignments
+          };
+        }).sort((a, b) => {
+          if (a.isAssigned && !b.isAssigned) return 1;
+          if (!a.isAssigned && b.isAssigned) return -1;
+          return 0;
+        });
+
+        const unassignedCount = allPlayers.filter(p => !p.isAssigned).length;
 
         return `
           <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { app.showDepthReorderModal = false; app.selectedPositionGroup = null; app.render(); }">
@@ -2243,37 +2324,40 @@
                   <div>
                     <h3 class="font-display font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-                      Available Players (${unassignedPlayers.length})
+                      Players (${unassignedCount} available, ${allPlayers.length - unassignedCount} assigned)
                     </h3>
-                    ${unassignedPlayers.length === 0 ? `
+                    ${allPlayers.length === 0 ? `
                       <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto mb-3 text-green-500"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                        <p class="font-semibold">All ${group} players assigned!</p>
+                        <p class="font-semibold">No ${group} players in roster</p>
                       </div>
                     ` : `
                       <div class="space-y-2 max-h-96 overflow-y-auto">
-                        ${unassignedPlayers.map(player => `
-                          <div class="border dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/50">
+                        ${allPlayers.map(player => `
+                          <div class="border dark:border-gray-700 rounded-lg p-3 ${player.isAssigned ? 'bg-gray-100 dark:bg-gray-800 opacity-60' : 'bg-gray-50 dark:bg-gray-700/50'} hover:opacity-100 transition-opacity">
                             <div class="flex items-center gap-3 mb-2">
-                              <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold" style="background: ${this.team.primaryColor};">
+                              <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold ${player.isAssigned ? 'opacity-70' : ''}" style="background: ${this.team.primaryColor};">
                                 ${this.getPlayerInitials(player.name)}
                               </div>
                               <div class="flex-1">
-                                <div class="font-semibold text-gray-900 dark:text-white">#${player.number} ${player.name}</div>
+                                <div class="font-semibold ${player.isAssigned ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white'}">#${player.number} ${player.name}</div>
                                 <div class="text-xs text-gray-500 dark:text-gray-400">${player.position} • ${player.year}${player.height ? ` • ${player.height}` : ''}${player.weight ? ` • ${player.weight}` : ''}</div>
+                                ${player.isAssigned ? `<div class="text-xs text-amber-600 dark:text-amber-400 mt-1">Currently: ${player.assignments.map(a => this.getSlotDisplayName(a.position) + ' #' + (a.depth + 1)).join(', ')}</div>` : ''}
                               </div>
                             </div>
                             <div class="flex flex-wrap gap-1">
                               ${slots.map(slot => `
                                 ${[0, 1, 2].slice(0, slot.depth).map(d => {
                                   const occupied = this.depthChart[slot.key]?.[d];
-                                  return !occupied ? `
+                                  // Show button if slot is empty OR if this player isn't already in this exact slot
+                                  const isThisPlayerInSlot = occupied && occupied.number === player.number && occupied.name === player.name;
+                                  return !isThisPlayerInSlot ? `
                                     <button
-                                      onclick="app.assignFromReorder('${slot.key}', ${d}, ${JSON.stringify(player).replace(/"/g, '&quot;')})"
-                                      class="px-2 py-1 text-xs rounded border hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                                      onclick="app.assignFromReorder('${slot.key}', ${d}, ${JSON.stringify({name: player.name, number: player.number, position: player.position, year: player.year, height: player.height, weight: player.weight, hometown: player.hometown, highSchool: player.highSchool, previousSchool: player.previousSchool, url: player.url}).replace(/"/g, '&quot;')})"
+                                      class="px-2 py-1 text-xs rounded border hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${occupied ? 'border-dashed opacity-70' : ''}"
                                       style="border-color: ${this.team.primaryColor}; color: ${this.team.primaryColor};"
+                                      title="${occupied ? 'Replace ' + occupied.name : ''}"
                                     >
-                                      ${slot.name} #${d + 1}
+                                      ${slot.name} #${d + 1}${occupied ? '*' : ''}
                                     </button>
                                   ` : '';
                                 }).join('')}
