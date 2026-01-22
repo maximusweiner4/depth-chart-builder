@@ -22,10 +22,11 @@ const positionMap = {
   'OT': 'OL',
   'OG': 'OL',
   'C': 'OL',
-  'DL': 'DT',
+  'DL': 'DL',
   'DT': 'DT',
   'NT': 'DT',
   'DE': 'DE',
+  'EDGE': 'DE',
   'LB': 'LB',
   'ILB': 'LB',
   'OLB': 'LB',
@@ -176,10 +177,12 @@ async function scrapeRoster() {
         const words = text.trim().split(/\s+/);
         if (words.length < 1 || words.length > 5) return false;
         // Exclude common non-name patterns
-        const excludePatterns = /\b(roster|bio|stats|schedule|news|staff|coach|coordinator|director|analyst|assistant|trainer|manager|operations)\b/i;
+        const excludePatterns = /\b(roster|bio|stats|schedule|news|staff|coach|coordinator|director|analyst|assistant|trainer|manager|operations|jersey\s*number|number\s*\d|full\s*bio|view\s*bio|social\s*media)\b/i;
         if (excludePatterns.test(text)) return false;
         // Should start with capital letter
         if (!/^[A-Z]/.test(text)) return false;
+        // Should not be just numbers or mostly numbers
+        if (/^\d+$/.test(text.replace(/\s/g, ''))) return false;
         return true;
       };
 
@@ -290,7 +293,7 @@ async function scrapeRoster() {
 
           // Get position - look for cell with position abbreviation
           let position = '';
-          const posRegex = /^(QB|RB|FB|WR|TE|OL|OT|OG|DL|DT|NT|DE|LB|ILB|OLB|MLB|DB|CB|S|SS|FS|K|PK|P|LS|SNP|C|ATH)$/i;
+          const posRegex = /^(QB|RB|FB|WR|TE|OL|OT|OG|DL|DT|NT|DE|EDGE|LB|ILB|OLB|MLB|DB|CB|S|SS|FS|K|PK|P|LS|SNP|C|ATH)$/i;
           for (const cell of cells) {
             const text = cell.textContent.trim();
             if (posRegex.test(text)) {
@@ -389,12 +392,20 @@ async function scrapeRoster() {
           // Skip staff sections
           if (isInStaffSection(card)) return;
 
-          // Try multiple name selectors
+          // Try multiple name selectors - prioritize heading and specific name classes
           const nameSelectors = [
-            'a[class*="name"]',
+            'h3 a[href*="/roster/"]',
+            'h2 a[href*="/roster/"]',
+            'h4 a[href*="/roster/"]',
+            '.s-person-card__content a[href*="/roster/"]',
+            '.s-person-details a[href*="/roster/"]',
+            '[class*="person-name"] a',
+            '[class*="player-name"] a',
+            'a[class*="person-name"]',
+            'a[class*="player-name"]',
+            'a[class*="name"][href*="/roster/"]',
             'a[href*="/roster/player/"]',
-            'a[href*="/roster/"]',
-            '[class*="name"]'
+            'a[href*="/roster/"]'
           ];
 
           let name = '';
@@ -412,14 +423,33 @@ async function scrapeRoster() {
             }
           }
 
+          // Fallback: look for any link that looks like a player name
+          if (!name) {
+            const allLinks = card.querySelectorAll('a[href*="/roster/"]');
+            for (const link of allLinks) {
+              const candidateName = link.textContent?.trim() || '';
+              if (looksLikePlayerName(candidateName) && !looksLikeSchoolName(candidateName)) {
+                name = candidateName;
+                playerUrl = link.getAttribute('href') || '';
+                break;
+              }
+            }
+          }
+
           if (!name) return;
 
           const text = card.textContent;
 
-          const numMatch = text.match(/#(\d{1,2})/);
-          const number = numMatch ? parseInt(numMatch[1]) : 0;
+          // Extract jersey number - try multiple patterns
+          let number = 0;
+          const numMatch = text.match(/(?:^|\s)#(\d{1,2})(?:\s|$)/) ||
+                          text.match(/Jersey\s*Number\s*(\d{1,2})/i) ||
+                          text.match(/(?:^|\s)(\d{1,2})(?:\s|$)/);
+          if (numMatch) {
+            number = parseInt(numMatch[1]) || 0;
+          }
 
-          const posMatch = text.match(/\b(QB|RB|FB|WR|TE|OL|OT|OG|DL|DT|NT|DE|LB|ILB|OLB|MLB|DB|CB|S|SS|FS|K|PK|P|LS|SNP|C|ATH)\b/i);
+          const posMatch = text.match(/\b(QB|RB|FB|WR|TE|OL|OT|OG|DL|DT|NT|DE|EDGE|LB|ILB|OLB|MLB|DB|CB|S|SS|FS|K|PK|P|LS|SNP|C|ATH)\b/i);
           const position = posMatch ? posMatch[1].toUpperCase() : '';
 
           const yearMatch = text.match(/\b(Fr\.|So\.|Jr\.|Sr\.|Freshman|Sophomore|Junior|Senior|R-Fr\.|R-So\.|R-Jr\.|R-Sr\.|Graduate|Grad)\b/i);
@@ -468,7 +498,7 @@ async function scrapeRoster() {
           const numMatch = text.match(/#?(\d{1,2})\b/);
           const number = numMatch ? parseInt(numMatch[1]) : 0;
 
-          const posMatch = text.match(/\b(QB|RB|FB|WR|TE|OL|OT|OG|DL|DT|NT|DE|LB|ILB|OLB|MLB|DB|CB|S|SS|FS|K|PK|P|LS|SNP|C|ATH)\b/i);
+          const posMatch = text.match(/\b(QB|RB|FB|WR|TE|OL|OT|OG|DL|DT|NT|DE|EDGE|LB|ILB|OLB|MLB|DB|CB|S|SS|FS|K|PK|P|LS|SNP|C|ATH)\b/i);
           const position = posMatch ? posMatch[1].toUpperCase() : '';
 
           const yearMatch = text.match(/\b(Fr\.|So\.|Jr\.|Sr\.|Freshman|Sophomore|Junior|Senior|R-Fr\.|R-So\.|R-Jr\.|R-Sr\.|Graduate|Grad)\b/i);

@@ -713,7 +713,13 @@
         else if (positionToSearch.startsWith('DE-')) positionToSearch = 'DE';
         else if (positionToSearch.startsWith('DT-')) positionToSearch = 'DT';
 
-        const allPlayers = this.roster.filter(p => p.position === positionToSearch);
+        // Allow DL players to appear in DE and DT positions
+        const positionsToMatch = [positionToSearch];
+        if (positionToSearch === 'DE' || positionToSearch === 'DT') {
+          positionsToMatch.push('DL');
+        }
+
+        const allPlayers = this.roster.filter(p => positionsToMatch.includes(p.position));
 
         // Get all players assigned to ANY position
         const allAssigned = [];
