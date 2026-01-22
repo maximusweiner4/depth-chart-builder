@@ -145,6 +145,201 @@
 
   <script>
     // Position definitions
+    // Formation definitions for offense and defense
+    const FORMATIONS = {
+      offense: {
+        'spread': {
+          name: 'Spread (10 Personnel)',
+          description: '1 RB, 0 TE, 4 WR',
+          positions: [
+            { code: 'WR-X', name: 'X', fullName: 'Split End (X Receiver)', depth: 3, x: 5, y: 45 },
+            { code: 'OT', name: 'LT', fullName: 'Left Tackle', depth: 4, x: 30, y: 42 },
+            { code: 'OG', name: 'LG', fullName: 'Left Guard', depth: 4, x: 40, y: 42 },
+            { code: 'C', name: 'C', fullName: 'Center', depth: 3, x: 50, y: 42 },
+            { code: 'OG', name: 'RG', fullName: 'Right Guard', depth: 4, x: 60, y: 42, isRight: true },
+            { code: 'OT', name: 'RT', fullName: 'Right Tackle', depth: 4, x: 70, y: 42, isRight: true },
+            { code: 'WR-SLOT', name: 'Slot', fullName: 'Slot Receiver (Left)', depth: 3, x: 20, y: 45 },
+            { code: 'WR-SLOT-R', name: 'Slot', fullName: 'Slot Receiver (Right)', depth: 3, x: 80, y: 45, isRight: true },
+            { code: 'WR-Z', name: 'Z', fullName: 'Flanker (Z Receiver)', depth: 3, x: 95, y: 45 },
+            { code: 'QB', name: 'QB', fullName: 'Quarterback', depth: 2, x: 50, y: 62 },
+            { code: 'RB', name: 'RB', fullName: 'Running Back', depth: 3, x: 50, y: 82 }
+          ]
+        },
+        'pro': {
+          name: 'Pro Style (11 Personnel)',
+          description: '1 RB, 1 TE, 3 WR',
+          positions: [
+            { code: 'WR-X', name: 'X', fullName: 'Split End (X Receiver)', depth: 3, x: 5, y: 45 },
+            { code: 'OT', name: 'LT', fullName: 'Left Tackle', depth: 4, x: 30, y: 42 },
+            { code: 'OG', name: 'LG', fullName: 'Left Guard', depth: 4, x: 40, y: 42 },
+            { code: 'C', name: 'C', fullName: 'Center', depth: 3, x: 50, y: 42 },
+            { code: 'OG', name: 'RG', fullName: 'Right Guard', depth: 4, x: 60, y: 42, isRight: true },
+            { code: 'OT', name: 'RT', fullName: 'Right Tackle', depth: 4, x: 70, y: 42, isRight: true },
+            { code: 'TE', name: 'TE', fullName: 'Tight End', depth: 2, x: 78, y: 42 },
+            { code: 'WR-SLOT', name: 'Slot', fullName: 'Slot Receiver', depth: 3, x: 85, y: 45 },
+            { code: 'WR-Z', name: 'Z', fullName: 'Flanker (Z Receiver)', depth: 3, x: 95, y: 45 },
+            { code: 'QB', name: 'QB', fullName: 'Quarterback', depth: 2, x: 50, y: 62 },
+            { code: 'RB', name: 'RB', fullName: 'Running Back', depth: 3, x: 50, y: 82 }
+          ]
+        },
+        'i-form': {
+          name: 'I-Formation (21 Personnel)',
+          description: '2 RB, 1 TE, 2 WR',
+          positions: [
+            { code: 'WR-X', name: 'X', fullName: 'Split End (X Receiver)', depth: 3, x: 5, y: 45 },
+            { code: 'OT', name: 'LT', fullName: 'Left Tackle', depth: 4, x: 30, y: 42 },
+            { code: 'OG', name: 'LG', fullName: 'Left Guard', depth: 4, x: 40, y: 42 },
+            { code: 'C', name: 'C', fullName: 'Center', depth: 3, x: 50, y: 42 },
+            { code: 'OG', name: 'RG', fullName: 'Right Guard', depth: 4, x: 60, y: 42, isRight: true },
+            { code: 'OT', name: 'RT', fullName: 'Right Tackle', depth: 4, x: 70, y: 42, isRight: true },
+            { code: 'TE', name: 'TE', fullName: 'Tight End', depth: 2, x: 78, y: 42 },
+            { code: 'WR-Z', name: 'Z', fullName: 'Flanker (Z Receiver)', depth: 3, x: 95, y: 45 },
+            { code: 'QB', name: 'QB', fullName: 'Quarterback', depth: 2, x: 50, y: 58 },
+            { code: 'FB', name: 'FB', fullName: 'Fullback', depth: 2, x: 50, y: 72 },
+            { code: 'RB', name: 'RB', fullName: 'Running Back', depth: 3, x: 50, y: 86 }
+          ]
+        },
+        'pistol': {
+          name: 'Pistol (11 Personnel)',
+          description: '1 RB, 1 TE, 3 WR',
+          positions: [
+            { code: 'WR-X', name: 'X', fullName: 'Split End (X Receiver)', depth: 3, x: 5, y: 45 },
+            { code: 'OT', name: 'LT', fullName: 'Left Tackle', depth: 4, x: 30, y: 42 },
+            { code: 'OG', name: 'LG', fullName: 'Left Guard', depth: 4, x: 40, y: 42 },
+            { code: 'C', name: 'C', fullName: 'Center', depth: 3, x: 50, y: 42 },
+            { code: 'OG', name: 'RG', fullName: 'Right Guard', depth: 4, x: 60, y: 42, isRight: true },
+            { code: 'OT', name: 'RT', fullName: 'Right Tackle', depth: 4, x: 70, y: 42, isRight: true },
+            { code: 'TE', name: 'TE', fullName: 'Tight End', depth: 2, x: 78, y: 42 },
+            { code: 'WR-SLOT', name: 'Slot', fullName: 'Slot Receiver', depth: 3, x: 85, y: 45 },
+            { code: 'WR-Z', name: 'Z', fullName: 'Flanker (Z Receiver)', depth: 3, x: 95, y: 45 },
+            { code: 'QB', name: 'QB', fullName: 'Quarterback', depth: 2, x: 50, y: 58 },
+            { code: 'RB', name: 'RB', fullName: 'Running Back', depth: 3, x: 50, y: 75 }
+          ]
+        },
+        '12-personnel': {
+          name: '12 Personnel',
+          description: '1 RB, 2 TE, 2 WR',
+          positions: [
+            { code: 'WR-X', name: 'X', fullName: 'Split End (X Receiver)', depth: 3, x: 5, y: 45 },
+            { code: 'OT', name: 'LT', fullName: 'Left Tackle', depth: 4, x: 30, y: 42 },
+            { code: 'OG', name: 'LG', fullName: 'Left Guard', depth: 4, x: 40, y: 42 },
+            { code: 'C', name: 'C', fullName: 'Center', depth: 3, x: 50, y: 42 },
+            { code: 'OG', name: 'RG', fullName: 'Right Guard', depth: 4, x: 60, y: 42, isRight: true },
+            { code: 'OT', name: 'RT', fullName: 'Right Tackle', depth: 4, x: 70, y: 42, isRight: true },
+            { code: 'TE', name: 'TE', fullName: 'Tight End (Y)', depth: 2, x: 78, y: 42 },
+            { code: 'TE-2', name: 'TE2', fullName: 'Tight End (F)', depth: 2, x: 22, y: 42 },
+            { code: 'WR-Z', name: 'Z', fullName: 'Flanker (Z Receiver)', depth: 3, x: 95, y: 45 },
+            { code: 'QB', name: 'QB', fullName: 'Quarterback', depth: 2, x: 50, y: 62 },
+            { code: 'RB', name: 'RB', fullName: 'Running Back', depth: 3, x: 50, y: 82 }
+          ]
+        },
+        'empty': {
+          name: 'Empty (10 Personnel)',
+          description: '0 RB, 1 TE, 4 WR',
+          positions: [
+            { code: 'WR-X', name: 'X', fullName: 'Split End (X Receiver)', depth: 3, x: 5, y: 45 },
+            { code: 'OT', name: 'LT', fullName: 'Left Tackle', depth: 4, x: 30, y: 42 },
+            { code: 'OG', name: 'LG', fullName: 'Left Guard', depth: 4, x: 40, y: 42 },
+            { code: 'C', name: 'C', fullName: 'Center', depth: 3, x: 50, y: 42 },
+            { code: 'OG', name: 'RG', fullName: 'Right Guard', depth: 4, x: 60, y: 42, isRight: true },
+            { code: 'OT', name: 'RT', fullName: 'Right Tackle', depth: 4, x: 70, y: 42, isRight: true },
+            { code: 'TE', name: 'TE', fullName: 'Tight End', depth: 2, x: 78, y: 42 },
+            { code: 'WR-SLOT', name: 'Slot', fullName: 'Slot Receiver (Left)', depth: 3, x: 18, y: 45 },
+            { code: 'WR-SLOT-R', name: 'Slot', fullName: 'Slot Receiver (Right)', depth: 3, x: 88, y: 45, isRight: true },
+            { code: 'WR-Z', name: 'Z', fullName: 'Flanker (Z Receiver)', depth: 3, x: 95, y: 45 },
+            { code: 'QB', name: 'QB', fullName: 'Quarterback', depth: 2, x: 50, y: 62 }
+          ]
+        }
+      },
+      defense: {
+        '4-3': {
+          name: '4-3 Defense',
+          description: '4 DL, 3 LB, 4 DB',
+          positions: [
+            { code: 'CB-X', name: 'CB', fullName: 'Cornerback (Left)', depth: 3, x: 5, y: 40 },
+            { code: 'DE-1', name: 'DE', fullName: 'Defensive End (Left)', depth: 3, x: 32, y: 40 },
+            { code: 'DT-1', name: 'DT', fullName: 'Defensive Tackle (Left)', depth: 3, x: 44, y: 40 },
+            { code: 'DT-2', name: 'DT', fullName: 'Defensive Tackle (Right)', depth: 3, x: 56, y: 40 },
+            { code: 'DE-2', name: 'DE', fullName: 'Defensive End (Right)', depth: 3, x: 68, y: 40 },
+            { code: 'CB-Y', name: 'CB', fullName: 'Cornerback (Right)', depth: 3, x: 95, y: 40 },
+            { code: 'LB-WLB', name: 'WLB', fullName: 'Weak Side Linebacker', depth: 3, x: 30, y: 60 },
+            { code: 'LB-MLB', name: 'MLB', fullName: 'Middle Linebacker', depth: 3, x: 50, y: 60 },
+            { code: 'LB-SLB', name: 'SLB', fullName: 'Strong Side Linebacker', depth: 3, x: 70, y: 60 },
+            { code: 'S-FS', name: 'FS', fullName: 'Free Safety', depth: 3, x: 40, y: 80 },
+            { code: 'S-SS', name: 'SS', fullName: 'Strong Safety', depth: 3, x: 60, y: 80 }
+          ]
+        },
+        '3-4': {
+          name: '3-4 Defense',
+          description: '3 DL, 4 LB, 4 DB',
+          positions: [
+            { code: 'CB-X', name: 'CB', fullName: 'Cornerback (Left)', depth: 3, x: 5, y: 40 },
+            { code: 'DE-1', name: 'DE', fullName: 'Defensive End (Left)', depth: 3, x: 35, y: 40 },
+            { code: 'NT', name: 'NT', fullName: 'Nose Tackle', depth: 3, x: 50, y: 40 },
+            { code: 'DE-2', name: 'DE', fullName: 'Defensive End (Right)', depth: 3, x: 65, y: 40 },
+            { code: 'CB-Y', name: 'CB', fullName: 'Cornerback (Right)', depth: 3, x: 95, y: 40 },
+            { code: 'LB-LOLB', name: 'LOLB', fullName: 'Left Outside Linebacker', depth: 3, x: 25, y: 55 },
+            { code: 'LB-LILB', name: 'LILB', fullName: 'Left Inside Linebacker', depth: 3, x: 42, y: 60 },
+            { code: 'LB-RILB', name: 'RILB', fullName: 'Right Inside Linebacker', depth: 3, x: 58, y: 60 },
+            { code: 'LB-ROLB', name: 'ROLB', fullName: 'Right Outside Linebacker', depth: 3, x: 75, y: 55 },
+            { code: 'S-FS', name: 'FS', fullName: 'Free Safety', depth: 3, x: 40, y: 80 },
+            { code: 'S-SS', name: 'SS', fullName: 'Strong Safety', depth: 3, x: 60, y: 80 }
+          ]
+        },
+        'nickel': {
+          name: 'Nickel (4-2-5)',
+          description: '4 DL, 2 LB, 5 DB',
+          positions: [
+            { code: 'CB-X', name: 'CB', fullName: 'Cornerback (Left)', depth: 3, x: 5, y: 40 },
+            { code: 'DE-1', name: 'DE', fullName: 'Defensive End (Left)', depth: 3, x: 35, y: 40 },
+            { code: 'DT-1', name: 'DT', fullName: 'Defensive Tackle (Left)', depth: 3, x: 45, y: 40 },
+            { code: 'DT-2', name: 'DT', fullName: 'Defensive Tackle (Right)', depth: 3, x: 55, y: 40 },
+            { code: 'DE-2', name: 'DE', fullName: 'Defensive End (Right)', depth: 3, x: 65, y: 40 },
+            { code: 'CB-SLOT', name: 'NCB', fullName: 'Nickel Cornerback', depth: 3, x: 75, y: 40 },
+            { code: 'CB-Y', name: 'CB', fullName: 'Cornerback (Right)', depth: 3, x: 95, y: 40 },
+            { code: 'LB-OLB', name: 'OLB', fullName: 'Outside Linebacker', depth: 4, x: 40, y: 60 },
+            { code: 'LB-ILB', name: 'ILB', fullName: 'Inside Linebacker', depth: 4, x: 60, y: 60 },
+            { code: 'S-FS', name: 'FS', fullName: 'Free Safety', depth: 3, x: 40, y: 80 },
+            { code: 'S-SS', name: 'SS', fullName: 'Strong Safety', depth: 3, x: 60, y: 80 }
+          ]
+        },
+        'dime': {
+          name: 'Dime (4-1-6)',
+          description: '4 DL, 1 LB, 6 DB',
+          positions: [
+            { code: 'CB-X', name: 'CB', fullName: 'Cornerback (Left)', depth: 3, x: 5, y: 40 },
+            { code: 'DE-1', name: 'DE', fullName: 'Defensive End (Left)', depth: 3, x: 35, y: 40 },
+            { code: 'DT-1', name: 'DT', fullName: 'Defensive Tackle (Left)', depth: 3, x: 45, y: 40 },
+            { code: 'DT-2', name: 'DT', fullName: 'Defensive Tackle (Right)', depth: 3, x: 55, y: 40 },
+            { code: 'DE-2', name: 'DE', fullName: 'Defensive End (Right)', depth: 3, x: 65, y: 40 },
+            { code: 'CB-SLOT', name: 'NCB', fullName: 'Nickel Cornerback', depth: 3, x: 75, y: 42 },
+            { code: 'CB-SLOT-2', name: 'DCB', fullName: 'Dime Cornerback', depth: 3, x: 25, y: 42 },
+            { code: 'CB-Y', name: 'CB', fullName: 'Cornerback (Right)', depth: 3, x: 95, y: 40 },
+            { code: 'LB-MLB', name: 'MLB', fullName: 'Middle Linebacker', depth: 3, x: 50, y: 60 },
+            { code: 'S-FS', name: 'FS', fullName: 'Free Safety', depth: 3, x: 40, y: 80 },
+            { code: 'S-SS', name: 'SS', fullName: 'Strong Safety', depth: 3, x: 60, y: 80 }
+          ]
+        },
+        '3-3-5': {
+          name: '3-3-5 Defense',
+          description: '3 DL, 3 LB, 5 DB',
+          positions: [
+            { code: 'CB-X', name: 'CB', fullName: 'Cornerback (Left)', depth: 3, x: 5, y: 40 },
+            { code: 'DE-1', name: 'DE', fullName: 'Defensive End (Left)', depth: 3, x: 35, y: 40 },
+            { code: 'NT', name: 'NT', fullName: 'Nose Tackle', depth: 3, x: 50, y: 40 },
+            { code: 'DE-2', name: 'DE', fullName: 'Defensive End (Right)', depth: 3, x: 65, y: 40 },
+            { code: 'CB-SLOT', name: 'NCB', fullName: 'Nickel Cornerback', depth: 3, x: 78, y: 42 },
+            { code: 'CB-Y', name: 'CB', fullName: 'Cornerback (Right)', depth: 3, x: 95, y: 40 },
+            { code: 'LB-WLB', name: 'WLB', fullName: 'Weak Side Linebacker', depth: 3, x: 30, y: 58 },
+            { code: 'LB-MLB', name: 'MLB', fullName: 'Middle Linebacker', depth: 3, x: 50, y: 60 },
+            { code: 'LB-SLB', name: 'SLB', fullName: 'Strong Side Linebacker', depth: 3, x: 70, y: 58 },
+            { code: 'S-FS', name: 'FS', fullName: 'Free Safety', depth: 3, x: 40, y: 80 },
+            { code: 'S-SS', name: 'SS', fullName: 'Strong Safety', depth: 3, x: 60, y: 80 }
+          ]
+        }
+      }
+    };
+
     const POSITIONS = {
       offense: [
         { code: 'WR-X', name: 'X', fullName: 'Split End (X Receiver)', depth: 3, x: 5, y: 45 },
@@ -215,6 +410,10 @@
         this.draggedPlayer = null;
         this.dragOverPosition = null;
 
+        // Formation state
+        this.offenseFormation = 'pro';
+        this.defenseFormation = 'nickel';
+
         this.undoStack = [];
         this.redoStack = [];
         this.maxUndoSteps = 20;
@@ -228,6 +427,7 @@
 
         setTimeout(() => {
           this.loadDarkMode();
+          this.loadFormations();
           this.loadTeam();
           this.loadDepthChart();
           this.loadRoster();
@@ -572,6 +772,10 @@
 
       handleDragLeave() {
         this.dragOverPosition = null;
+
+        // Formation state
+        this.offenseFormation = 'pro';
+        this.defenseFormation = 'nickel';
         this.render();
       }
 
@@ -619,6 +823,10 @@
 
         this.draggedPlayer = null;
         this.dragOverPosition = null;
+
+        // Formation state
+        this.offenseFormation = 'pro';
+        this.defenseFormation = 'nickel';
         this.render();
       }
 
@@ -691,6 +899,36 @@
         window.print();
       }
 
+      // Get positions for current tab based on selected formation
+      getPositions(tab) {
+        if (tab === "offense") {
+          return FORMATIONS.offense[this.offenseFormation]?.positions || POSITIONS.offense;
+        } else if (tab === "defense") {
+          return FORMATIONS.defense[this.defenseFormation]?.positions || POSITIONS.defense;
+        }
+        return POSITIONS[tab] || [];
+      }
+
+      // Change formation and reinitialize positions
+      changeFormation(type, formation) {
+        if (type === "offense") {
+          this.offenseFormation = formation;
+          localStorage.setItem("depth-chart-offense-formation", formation);
+        } else if (type === "defense") {
+          this.defenseFormation = formation;
+          localStorage.setItem("depth-chart-defense-formation", formation);
+        }
+        this.render();
+      }
+
+      // Load saved formations
+      loadFormations() {
+        const savedOffense = localStorage.getItem("depth-chart-offense-formation");
+        const savedDefense = localStorage.getItem("depth-chart-defense-formation");
+        if (savedOffense && FORMATIONS.offense[savedOffense]) this.offenseFormation = savedOffense;
+        if (savedDefense && FORMATIONS.defense[savedDefense]) this.defenseFormation = savedDefense;
+      }
+
       getPlayerLastName(name) {
         const suffixes = ["Jr.", "Sr.", "II", "III", "IV", "V"];
         const parts = name.split(" ");
@@ -719,6 +957,7 @@
             ${this.renderButtons()}
             ${this.renderTabs()}
             ${this.activeTab !== 'special' ? this.renderDepthSelector() : ''}
+            ${this.activeTab \!== 'special' ? this.renderFormationSelector() : ''}
             ${this.renderField()}
             ${this.renderKeyboardHints()}
           </div>
@@ -1195,8 +1434,38 @@
         `;
       }
 
+
+      renderFormationSelector() {
+        if (this.activeTab === 'special') return '';
+
+        const formations = this.activeTab === 'offense' ? FORMATIONS.offense : FORMATIONS.defense;
+        const currentFormation = this.activeTab === 'offense' ? this.offenseFormation : this.defenseFormation;
+
+        return `
+          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-4 border-2" style="border-color: ${this.team.primaryColor};">
+            <div class="flex items-center gap-4 flex-wrap">
+              <span class="font-display font-semibold text-gray-900 dark:text-white">FORMATION:</span>
+              <select
+                onchange="app.changeFormation('${this.activeTab}', this.value)"
+                class="px-4 py-2 rounded-lg font-semibold border-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer"
+                style="border-color: ${this.team.primaryColor};"
+              >
+                ${Object.entries(formations).map(([key, formation]) => `
+                  <option value="${key}" ${key === currentFormation ? 'selected' : ''}>
+                    ${formation.name}
+                  </option>
+                `).join('')}
+              </select>
+              <span class="text-sm text-gray-500 dark:text-gray-400">
+                ${formations[currentFormation]?.description || ''}
+              </span>
+            </div>
+          </div>
+        `;
+      }
+
       renderField() {
-        const positions = POSITIONS[this.activeTab];
+        const positions = this.getPositions(this.activeTab);
 
         return `
           <div class="field-view field-container bg-gradient-to-b from-green-700 to-green-600 rounded-lg shadow-lg p-4 md:p-8 relative overflow-hidden" style="min-height: 600px;">
