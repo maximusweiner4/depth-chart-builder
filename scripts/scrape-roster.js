@@ -383,7 +383,72 @@ async function scrapeRoster() {
         });
       }
 
-      // If table extraction failed, try card-based extraction
+      // If table extraction failed, try roster-list-item pattern (Iowa, Auburn, etc.)
+      if (playerList.length === 0) {
+        const rosterItems = document.querySelectorAll('.roster-players .roster-list-item, .roster-players-list .roster-list-item');
+        console.log(`Found ${rosterItems.length} roster list items`);
+
+        rosterItems.forEach(item => {
+          // Skip staff sections
+          if (isInStaffSection(item)) return;
+
+          // Get name from title element
+          const nameEl = item.querySelector('.roster-list-item__title a, .roster-list-item__title');
+          const name = nameEl?.textContent?.trim() || '';
+
+          if (!name || !looksLikePlayerName(name) || looksLikeSchoolName(name)) return;
+
+          // Get jersey number
+          const numEl = item.querySelector('.roster-list-item__jersey-number');
+          const number = parseInt(numEl?.textContent?.trim()) || 0;
+
+          // Get position
+          const posEl = item.querySelector('.roster-player-list-profile-field--position, [class*="position"]');
+          let position = posEl?.textContent?.trim()?.replace(/Position:?\s*/i, '').trim() || '';
+
+          // Get year
+          const yearEl = item.querySelector('.roster-player-list-profile-field--class-level, [class*="class"]');
+          const year = yearEl?.textContent?.trim()?.replace(/Class:?\s*/i, '').trim() || '';
+
+          // Get height
+          const heightEl = item.querySelector('.roster-player-list-profile-field--height, [class*="height"]');
+          const height = heightEl?.textContent?.trim()?.replace(/Height:?\s*/i, '').trim() || '';
+
+          // Get weight
+          const weightEl = item.querySelector('.roster-player-list-profile-field--weight, [class*="weight"]');
+          const weight = weightEl?.textContent?.trim()?.replace(/Weight:?\s*/i, '').trim() || '';
+
+          // Get hometown
+          const hometownEl = item.querySelector('.roster-player-list-profile-field--hometown, [class*="hometown"]');
+          const hometown = hometownEl?.textContent?.trim()?.replace(/Hometown:?\s*/i, '').trim() || '';
+
+          // Get player URL
+          const linkEl = item.querySelector('a[href*="/roster/"]');
+          const playerUrl = linkEl?.getAttribute('href') || '';
+
+          playerList.push({
+            name,
+            number,
+            position,
+            year,
+            height,
+            weight,
+            hometown,
+            highSchool: '',
+            previousSchool: '',
+            playerUrl
+          });
+        });
+      }
+
+      // Helper: Check if position indicates a coach/staff member
+      const isCoachPosition = (pos) => {
+        if (!pos) return false;
+        const coachPatterns = /\b(coach|coordinator|director|analyst|assistant|specialist|quality|control|operations|recruiting|strength|conditioning|manager|chief|general|video|associate)\b/i;
+        return coachPatterns.test(pos);
+      };
+
+      // If still no players, try card-based extraction
       if (playerList.length === 0) {
         const playerCards = document.querySelectorAll('.s-person-card, [class*="player-card"], [class*="roster-card"], .sidearm-roster-player');
         console.log(`Found ${playerCards.length} player cards`);
@@ -391,6 +456,10 @@ async function scrapeRoster() {
         playerCards.forEach(card => {
           // Skip staff sections
           if (isInStaffSection(card)) return;
+
+          // Skip cards that link to coach pages
+          const cardLink = card.querySelector('a[href*="/roster/"]');
+          if (cardLink && cardLink.href && cardLink.href.includes('/coaches/')) return;
 
           // Try multiple name selectors - prioritize heading and specific name classes
           const nameSelectors = [
@@ -449,8 +518,20 @@ async function scrapeRoster() {
             number = parseInt(numMatch[1]) || 0;
           }
 
-          const posMatch = text.match(/\b(QB|RB|FB|WR|TE|OL|OT|OG|DL|DT|NT|DE|EDGE|LB|ILB|OLB|MLB|DB|CB|S|SS|FS|K|PK|P|LS|SNP|C|ATH)\b/i);
-          const position = posMatch ? posMatch[1].toUpperCase() : '';
+          // Get position - try specific element first, then regex
+          let position = '';
+          const posEl = card.querySelector('.s-person-details__position, .s-person-card__position span, [class*="position"]');
+          if (posEl) {
+            position = posEl.textContent?.trim() || '';
+          }
+          // If position element has full text like "Wide Receiver", try to match abbreviation
+          if (!position || position.length > 10) {
+            const posMatch = text.match(/\b(QB|RB|FB|WR|TE|OL|OT|OG|DL|DT|NT|DE|EDGE|LB|ILB|OLB|MLB|DB|CB|S|SS|FS|K|PK|P|LS|SNP|C|ATH)\b/i);
+            position = posMatch ? posMatch[1].toUpperCase() : position;
+          }
+
+          // Skip if position indicates a coach/staff member (early check)
+          if (isCoachPosition(position)) return;
 
           const yearMatch = text.match(/\b(Fr\.|So\.|Jr\.|Sr\.|Freshman|Sophomore|Junior|Senior|R-Fr\.|R-So\.|R-Jr\.|R-Sr\.|Graduate|Grad)\b/i);
           const year = yearMatch ? yearMatch[1] : '';
