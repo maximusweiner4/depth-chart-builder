@@ -340,6 +340,40 @@
             { code: 'WR-Z', name: 'Z', fullName: 'Flanker (Z Receiver)', depth: 3, x: 95, y: 45 },
             { code: 'QB', name: 'QB', fullName: 'Quarterback', depth: 3, x: 50, y: 62 }
           ]
+        },
+        'goal-line': {
+          name: 'Goal Line / Jumbo',
+          description: '2 RB, 2 TE, 1 WR - Power running',
+          positions: [
+            { code: 'WR-X', name: 'X', fullName: 'Split End (X Receiver)', depth: 3, x: 5, y: 45 },
+            { code: 'TE-2', name: 'TE2', fullName: 'Tight End (Left)', depth: 3, x: 22, y: 42 },
+            { code: 'OT', name: 'LT', fullName: 'Left Tackle', depth: 3, x: 32, y: 42 },
+            { code: 'OG', name: 'LG', fullName: 'Left Guard', depth: 3, x: 42, y: 42 },
+            { code: 'C', name: 'C', fullName: 'Center', depth: 3, x: 50, y: 42 },
+            { code: 'OG', name: 'RG', fullName: 'Right Guard', depth: 3, x: 58, y: 42, isRight: true },
+            { code: 'OT', name: 'RT', fullName: 'Right Tackle', depth: 3, x: 68, y: 42, isRight: true },
+            { code: 'TE', name: 'TE', fullName: 'Tight End (Right)', depth: 3, x: 78, y: 42 },
+            { code: 'QB', name: 'QB', fullName: 'Quarterback', depth: 3, x: 50, y: 58 },
+            { code: 'FB', name: 'FB', fullName: 'Fullback', depth: 3, x: 50, y: 72 },
+            { code: 'RB', name: 'RB', fullName: 'Running Back', depth: 3, x: 50, y: 86 }
+          ]
+        },
+        'wildcat': {
+          name: 'Wildcat',
+          description: 'Direct snap to RB, QB as receiver',
+          positions: [
+            { code: 'WR-X', name: 'X', fullName: 'Split End (X Receiver)', depth: 3, x: 5, y: 45 },
+            { code: 'OT', name: 'LT', fullName: 'Left Tackle', depth: 3, x: 30, y: 42 },
+            { code: 'OG', name: 'LG', fullName: 'Left Guard', depth: 3, x: 40, y: 42 },
+            { code: 'C', name: 'C', fullName: 'Center', depth: 3, x: 50, y: 42 },
+            { code: 'OG', name: 'RG', fullName: 'Right Guard', depth: 3, x: 60, y: 42, isRight: true },
+            { code: 'OT', name: 'RT', fullName: 'Right Tackle', depth: 3, x: 70, y: 42, isRight: true },
+            { code: 'TE', name: 'TE', fullName: 'Tight End', depth: 3, x: 78, y: 42 },
+            { code: 'WR-Z', name: 'Z', fullName: 'Flanker (Z Receiver)', depth: 3, x: 95, y: 45 },
+            { code: 'RB', name: 'RB', fullName: 'Running Back (Direct Snap)', depth: 3, x: 50, y: 62 },
+            { code: 'RB-2', name: 'RB2', fullName: 'Running Back (Motion)', depth: 3, x: 35, y: 62 },
+            { code: 'WR-SLOT', name: 'WR/QB', fullName: 'Receiver/QB Option', depth: 3, x: 20, y: 45 }
+          ]
         }
       },
       defense: {
@@ -427,6 +461,57 @@
             { code: 'S-FS', name: 'FS', fullName: 'Free Safety', depth: 3, x: 40, y: 80 },
             { code: 'S-SS', name: 'SS', fullName: 'Strong Safety', depth: 3, x: 60, y: 80 }
           ]
+        },
+        'bear': {
+          name: 'Bear Defense',
+          description: '5 DL over center, gap control',
+          positions: [
+            { code: 'CB-X', name: 'CB', fullName: 'Cornerback (Left)', depth: 3, x: 5, y: 40 },
+            { code: 'DE-1', name: 'DE', fullName: 'Defensive End (Left)', depth: 3, x: 28, y: 40 },
+            { code: 'DT-1', name: 'DT', fullName: 'Defensive Tackle (Left)', depth: 3, x: 40, y: 40 },
+            { code: 'NT', name: 'NT', fullName: 'Nose Tackle', depth: 3, x: 50, y: 40 },
+            { code: 'DT-2', name: 'DT', fullName: 'Defensive Tackle (Right)', depth: 3, x: 60, y: 40 },
+            { code: 'DE-2', name: 'DE', fullName: 'Defensive End (Right)', depth: 3, x: 72, y: 40 },
+            { code: 'CB-Y', name: 'CB', fullName: 'Cornerback (Right)', depth: 3, x: 95, y: 40 },
+            { code: 'LB-ILB', name: 'ILB', fullName: 'Inside Linebacker (Left)', depth: 3, x: 35, y: 60 },
+            { code: 'LB-ILB-2', name: 'ILB', fullName: 'Inside Linebacker (Right)', depth: 3, x: 65, y: 60 },
+            { code: 'S-FS', name: 'FS', fullName: 'Free Safety', depth: 3, x: 40, y: 80 },
+            { code: 'S-SS', name: 'SS', fullName: 'Strong Safety', depth: 3, x: 60, y: 80 }
+          ]
+        },
+        '46': {
+          name: '46 Defense',
+          description: 'Aggressive 8-man box, blitz-heavy',
+          positions: [
+            { code: 'CB-X', name: 'CB', fullName: 'Cornerback (Left)', depth: 3, x: 5, y: 40 },
+            { code: 'DE-1', name: 'DE', fullName: 'Defensive End (Left)', depth: 3, x: 30, y: 40 },
+            { code: 'DT-1', name: 'DT', fullName: 'Defensive Tackle (Left)', depth: 3, x: 42, y: 40 },
+            { code: 'NT', name: 'NT', fullName: 'Nose Tackle', depth: 3, x: 54, y: 40 },
+            { code: 'DE-2', name: 'DE', fullName: 'Defensive End (Right)', depth: 3, x: 68, y: 40 },
+            { code: 'CB-Y', name: 'CB', fullName: 'Cornerback (Right)', depth: 3, x: 95, y: 40 },
+            { code: 'LB-OLB', name: 'OLB', fullName: 'Outside Linebacker', depth: 3, x: 22, y: 55 },
+            { code: 'LB-MLB', name: 'MLB', fullName: 'Middle Linebacker', depth: 3, x: 50, y: 60 },
+            { code: 'LB-SLB', name: 'SLB', fullName: 'Strong Linebacker', depth: 3, x: 78, y: 55 },
+            { code: 'S-SS', name: 'SS', fullName: 'Strong Safety (In Box)', depth: 3, x: 65, y: 50 },
+            { code: 'S-FS', name: 'FS', fullName: 'Free Safety', depth: 3, x: 50, y: 80 }
+          ]
+        },
+        'goal-line-d': {
+          name: 'Goal Line Defense',
+          description: '6 DL, 3 LB, 2 DB - Stop the run',
+          positions: [
+            { code: 'CB-X', name: 'CB', fullName: 'Cornerback (Left)', depth: 3, x: 5, y: 45 },
+            { code: 'DE-1', name: 'DE', fullName: 'Defensive End (Left)', depth: 3, x: 22, y: 40 },
+            { code: 'DT-1', name: 'DT', fullName: 'Defensive Tackle (Left)', depth: 3, x: 34, y: 40 },
+            { code: 'NT', name: 'NT', fullName: 'Nose Tackle', depth: 3, x: 46, y: 40 },
+            { code: 'DT-2', name: 'DT', fullName: 'Defensive Tackle (Right)', depth: 3, x: 58, y: 40 },
+            { code: 'DE-2', name: 'DE', fullName: 'Defensive End (Right)', depth: 3, x: 70, y: 40 },
+            { code: 'CB-Y', name: 'CB', fullName: 'Cornerback (Right)', depth: 3, x: 95, y: 45 },
+            { code: 'LB-OLB', name: 'OLB', fullName: 'Outside Linebacker', depth: 3, x: 28, y: 58 },
+            { code: 'LB-MLB', name: 'MLB', fullName: 'Middle Linebacker', depth: 3, x: 50, y: 60 },
+            { code: 'LB-SLB', name: 'SLB', fullName: 'Strong Linebacker', depth: 3, x: 72, y: 58 },
+            { code: 'S-SS', name: 'SS', fullName: 'Strong Safety', depth: 3, x: 50, y: 78 }
+          ]
         }
       }
     };
@@ -459,9 +544,13 @@
         { code: 'S-SS', name: 'SS', fullName: 'Strong Safety', depth: 3, x: 60, y: 80 }
       ],
       special: [
-        { code: 'K', name: 'K', fullName: 'Placekicker', depth: 3, x: 50, y: 50 },
-        { code: 'P', name: 'P', fullName: 'Punter', depth: 3, x: 50, y: 80 },
-        { code: 'LS', name: 'LS', fullName: 'Long Snapper', depth: 3, x: 50, y: 20 }
+        { code: 'K', name: 'K', fullName: 'Placekicker', depth: 3, x: 25, y: 30 },
+        { code: 'KOS', name: 'KOS', fullName: 'Kickoff Specialist', depth: 3, x: 75, y: 30 },
+        { code: 'P', name: 'P', fullName: 'Punter', depth: 3, x: 25, y: 55 },
+        { code: 'H', name: 'H', fullName: 'Holder', depth: 3, x: 75, y: 55 },
+        { code: 'LS', name: 'LS', fullName: 'Long Snapper', depth: 3, x: 25, y: 80 },
+        { code: 'KR', name: 'KR', fullName: 'Kick Returner', depth: 3, x: 75, y: 80 },
+        { code: 'PR', name: 'PR', fullName: 'Punt Returner', depth: 3, x: 50, y: 55 }
       ]
     };
 
@@ -504,6 +593,22 @@
         // Quick depth reorder
         this.showDepthReorderModal = false;
         this.selectedPositionGroup = null;
+
+        // Two-deep view mode (show starter + backup together)
+        this.twoDeepView = false;
+
+        // Player status tracking (injuries, suspensions, portal)
+        this.playerStatuses = {}; // { 'playerKey': 'OUT' | 'DOUBTFUL' | 'QUESTIONABLE' | 'PROBABLE' | 'SUSPENDED' | 'PORTAL' }
+
+        // Player notes
+        this.playerNotes = {}; // { 'playerKey': 'note text' }
+
+        // Position battles ("OR" - undecided starter)
+        this.positionBattles = {}; // { 'positionKey': true }
+
+        // Status edit modal
+        this.showStatusModal = false;
+        this.statusEditPlayer = null;
 
         // Formation state
         this.offenseFormation = 'pro';
@@ -605,6 +710,26 @@
         } else {
           this.initializeEmptyChart();
         }
+        // Load player statuses
+        const savedStatuses = localStorage.getItem('generic-player-statuses');
+        if (savedStatuses) {
+          this.playerStatuses = JSON.parse(savedStatuses);
+        }
+        // Load player notes
+        const savedNotes = localStorage.getItem('generic-player-notes');
+        if (savedNotes) {
+          this.playerNotes = JSON.parse(savedNotes);
+        }
+        // Load position battles
+        const savedBattles = localStorage.getItem('generic-position-battles');
+        if (savedBattles) {
+          this.positionBattles = JSON.parse(savedBattles);
+        }
+        // Load two-deep view preference
+        const savedTwoDeep = localStorage.getItem('generic-two-deep-view');
+        if (savedTwoDeep !== null) {
+          this.twoDeepView = JSON.parse(savedTwoDeep);
+        }
       }
 
       loadRoster() {
@@ -665,6 +790,10 @@
 
       autoSave() {
         localStorage.setItem('generic-depth-chart', JSON.stringify(this.depthChart));
+        localStorage.setItem('generic-player-statuses', JSON.stringify(this.playerStatuses));
+        localStorage.setItem('generic-player-notes', JSON.stringify(this.playerNotes));
+        localStorage.setItem('generic-position-battles', JSON.stringify(this.positionBattles));
+        localStorage.setItem('generic-two-deep-view', JSON.stringify(this.twoDeepView));
         this.lastSaved = new Date();
         this.saving = true;
         this.render();
@@ -679,9 +808,9 @@
         text += `Generated: ${new Date().toLocaleDateString()}\n\n`;
 
         const sections = {
-          'OFFENSE': ['QB', 'RB', 'WR-X', 'WR-Z', 'WR-SLOT', 'TE', 'OT', 'OT-R', 'OG', 'OG-R', 'C'],
-          'DEFENSE': ['DE-1', 'DE-2', 'DT-1', 'DT-2', 'LB-ILB', 'LB-OLB', 'CB-X', 'CB-Y', 'CB-SLOT', 'S-FS', 'S-SS'],
-          'SPECIAL TEAMS': ['K', 'P', 'LS']
+          'OFFENSE': ['QB', 'RB', 'FB', 'WR-X', 'WR-Z', 'WR-SLOT', 'WR-SLOT-R', 'TE', 'TE-2', 'OT', 'OT-R', 'OG', 'OG-R', 'C'],
+          'DEFENSE': ['DE-1', 'DE-2', 'DT-1', 'DT-2', 'NT', 'LB-ILB', 'LB-OLB', 'LB-MLB', 'CB-X', 'CB-Y', 'CB-SLOT', 'S-FS', 'S-SS'],
+          'SPECIAL TEAMS': ['K', 'KOS', 'P', 'H', 'LS', 'KR', 'PR']
         };
 
         for (const [section, positions] of Object.entries(sections)) {
@@ -692,10 +821,16 @@
             const filled = players.filter(p => p !== null);
 
             if (filled.length > 0) {
-              const posLabel = pos.replace('-R', ' (Right)').replace('-', ' ');
-              text += `${posLabel}:\n`;
+              const posLabel = this.getSlotDisplayName(pos);
+              const isBattle = this.positionBattles[pos];
+              text += `${posLabel}${isBattle ? ' (OR)' : ''}:\n`;
               filled.forEach((p, i) => {
-                text += `  ${i + 1}. #${p.number} ${p.name} (${p.year})\n`;
+                const status = this.getPlayerStatus(p);
+                const note = this.getPlayerNote(p);
+                let line = `  ${i + 1}. #${p.number} ${p.name} (${p.year})`;
+                if (status) line += ` [${status}]`;
+                if (note) line += ` - ${note}`;
+                text += line + '\n';
               });
               text += '\n';
             }
@@ -712,6 +847,227 @@
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+      }
+
+      // Player status helper methods
+      getPlayerKey(player) {
+        return `${player.number}-${player.name}`;
+      }
+
+      getPlayerStatus(player) {
+        if (!player) return null;
+        return this.playerStatuses[this.getPlayerKey(player)] || null;
+      }
+
+      setPlayerStatus(player, status) {
+        if (!player) return;
+        const key = this.getPlayerKey(player);
+        if (status) {
+          this.playerStatuses[key] = status;
+        } else {
+          delete this.playerStatuses[key];
+        }
+        this.autoSave();
+      }
+
+      getStatusColor(status) {
+        const colors = {
+          'OUT': 'bg-red-500',
+          'DOUBTFUL': 'bg-red-400',
+          'QUESTIONABLE': 'bg-yellow-500',
+          'PROBABLE': 'bg-green-400',
+          'SUSPENDED': 'bg-purple-500',
+          'PORTAL': 'bg-blue-500',
+          'REDSHIRT': 'bg-gray-500'
+        };
+        return colors[status] || 'bg-gray-400';
+      }
+
+      getStatusBadge(status) {
+        const badges = {
+          'OUT': 'OUT',
+          'DOUBTFUL': 'DBT',
+          'QUESTIONABLE': 'Q',
+          'PROBABLE': 'PROB',
+          'SUSPENDED': 'SUS',
+          'PORTAL': 'PTL',
+          'REDSHIRT': 'RS'
+        };
+        return badges[status] || status;
+      }
+
+      // Player notes helper methods
+      getPlayerNote(player) {
+        if (!player) return '';
+        return this.playerNotes[this.getPlayerKey(player)] || '';
+      }
+
+      setPlayerNote(player, note) {
+        if (!player) return;
+        const key = this.getPlayerKey(player);
+        if (note && note.trim()) {
+          this.playerNotes[key] = note.trim();
+        } else {
+          delete this.playerNotes[key];
+        }
+        this.autoSave();
+      }
+
+      // Position battle toggle
+      togglePositionBattle(posKey) {
+        if (this.positionBattles[posKey]) {
+          delete this.positionBattles[posKey];
+        } else {
+          this.positionBattles[posKey] = true;
+        }
+        this.autoSave();
+        this.render();
+      }
+
+      // Two-deep view toggle
+      toggleTwoDeepView() {
+        this.twoDeepView = !this.twoDeepView;
+        this.autoSave();
+        this.render();
+      }
+
+      // Share as image
+      async shareAsImage() {
+        // Create a canvas from the field view
+        const fieldEl = document.querySelector('.field-container');
+        if (!fieldEl) return;
+
+        try {
+          // Use html2canvas if available, or create a styled version
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+
+          // Set canvas size
+          canvas.width = 1200;
+          canvas.height = 800;
+
+          // Draw background
+          const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+          gradient.addColorStop(0, '#15803d');
+          gradient.addColorStop(1, '#166534');
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          // Draw field lines
+          ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+          ctx.lineWidth = 2;
+          for (let i = 1; i < 10; i++) {
+            const y = (canvas.height / 10) * i;
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(canvas.width, y);
+            ctx.stroke();
+          }
+
+          // Draw header
+          ctx.fillStyle = this.team.primaryColor;
+          ctx.fillRect(0, 0, canvas.width, 80);
+          ctx.fillStyle = 'white';
+          ctx.font = 'bold 36px Bebas Neue, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(`${this.team.name.toUpperCase()} DEPTH CHART`, canvas.width / 2, 52);
+          ctx.font = '18px sans-serif';
+          ctx.fillText(`${this.activeTab.toUpperCase()} - ${this.twoDeepView ? 'Two-Deep' : ['Starters', '2nd String', '3rd String'][this.depthLevel]}`, canvas.width / 2, 75);
+
+          // Draw positions
+          const positions = this.getPositions(this.activeTab);
+          ctx.font = 'bold 14px sans-serif';
+
+          positions.forEach(pos => {
+            const posKey = pos.isRight ? `${pos.code}-R` : pos.code;
+            const x = (pos.x / 100) * canvas.width;
+            const y = 80 + ((pos.y / 100) * (canvas.height - 100));
+
+            // Position box
+            const player = this.depthChart[posKey]?.[this.depthLevel];
+            const boxWidth = 90;
+            const boxHeight = this.twoDeepView ? 70 : 50;
+
+            ctx.fillStyle = player ? this.team.primaryColor : 'white';
+            ctx.strokeStyle = this.team.primaryColor;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(x - boxWidth/2, y - boxHeight/2, boxWidth, boxHeight, 8);
+            ctx.fill();
+            ctx.stroke();
+
+            // Position name
+            ctx.fillStyle = player ? 'white' : this.team.primaryColor;
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.fillText(pos.name, x, y - (this.twoDeepView ? 22 : 12));
+
+            // Player name
+            if (player) {
+              ctx.font = 'bold 14px sans-serif';
+              ctx.fillText(`#${player.number}`, x, y + (this.twoDeepView ? -5 : 5));
+              ctx.font = '11px sans-serif';
+              ctx.fillText(this.getPlayerLastName(player.name), x, y + (this.twoDeepView ? 10 : 18));
+
+              // Status badge
+              const status = this.getPlayerStatus(player);
+              if (status) {
+                ctx.fillStyle = this.getStatusColor(status).replace('bg-', '').includes('red') ? '#ef4444' :
+                               this.getStatusColor(status).includes('yellow') ? '#eab308' :
+                               this.getStatusColor(status).includes('green') ? '#22c55e' : '#8b5cf6';
+                ctx.beginPath();
+                ctx.arc(x + boxWidth/2 - 8, y - boxHeight/2 + 8, 6, 0, Math.PI * 2);
+                ctx.fill();
+              }
+
+              // Two-deep: show backup
+              if (this.twoDeepView) {
+                const backup = this.depthChart[posKey]?.[1];
+                if (backup) {
+                  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+                  ctx.font = '10px sans-serif';
+                  ctx.fillText(`#${backup.number} ${this.getPlayerLastName(backup.name)}`, x, y + 25);
+                }
+              }
+            }
+
+            // Position battle indicator
+            if (this.positionBattles[posKey]) {
+              ctx.fillStyle = '#fbbf24';
+              ctx.font = 'bold 10px sans-serif';
+              ctx.fillText('OR', x, y + boxHeight/2 + 12);
+            }
+          });
+
+          // Add watermark
+          ctx.fillStyle = 'rgba(255,255,255,0.5)';
+          ctx.font = '12px sans-serif';
+          ctx.textAlign = 'right';
+          ctx.fillText('Created with CFB Depth Chart Builder', canvas.width - 20, canvas.height - 15);
+
+          // Convert to blob and download
+          canvas.toBlob((blob) => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${this.team.name.toLowerCase().replace(/\s+/g, '-')}-depth-chart-${this.activeTab}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }, 'image/png');
+
+        } catch (error) {
+          console.error('Error generating image:', error);
+          alert('Could not generate image. Try using the Print function instead.');
+        }
+      }
+
+      // Open status/notes modal for a player
+      openStatusModal(player, posKey, depth) {
+        this.statusEditPlayer = { player, posKey, depth };
+        this.showStatusModal = true;
+        this.render();
       }
 
       showResetConfirmation() {
@@ -740,6 +1096,10 @@
         localStorage.removeItem('generic-depth-chart');
         localStorage.removeItem('generic-onboarding-seen');
         localStorage.removeItem('generic-dark-mode');
+        localStorage.removeItem('generic-player-statuses');
+        localStorage.removeItem('generic-player-notes');
+        localStorage.removeItem('generic-position-battles');
+        localStorage.removeItem('generic-two-deep-view');
 
         // Reset app state directly
         this.roster = [];
@@ -770,7 +1130,7 @@
               const position = match[3].trim();
               const year = match[4].trim();
 
-              const validPositions = ['QB', 'RB', 'WR', 'TE', 'OL', 'DE', 'DT', 'LB', 'CB', 'S', 'K', 'P', 'LS'];
+              const validPositions = ['QB', 'RB', 'FB', 'WR', 'TE', 'OL', 'OT', 'OG', 'C', 'DL', 'DE', 'DT', 'NT', 'EDGE', 'LB', 'ILB', 'OLB', 'MLB', 'DB', 'CB', 'S', 'SS', 'FS', 'K', 'PK', 'P', 'LS', 'SNP'];
               if (validPositions.includes(position) && !isNaN(number)) {
                 newRoster.push({ name, number, position, year, height: '', weight: '', hometown: '', highSchool: '', previousSchool: '', url: '' });
               }
@@ -819,6 +1179,18 @@
         // Allow DB, CB, and S players in CB and S positions
         if (positionToSearch === 'CB' || positionToSearch === 'S') {
           positionsToMatch.push('DB', 'CB', 'S');
+        }
+        // Kick/Punt returners can be WR, RB, or DB
+        if (positionToSearch === 'KR' || positionToSearch === 'PR') {
+          positionsToMatch.push('WR', 'RB', 'FB', 'DB', 'CB', 'S');
+        }
+        // Holder can be QB or P
+        if (positionToSearch === 'H') {
+          positionsToMatch.push('QB', 'P');
+        }
+        // Kickoff specialist can be K or P
+        if (positionToSearch === 'KOS') {
+          positionsToMatch.push('K', 'PK', 'P');
         }
 
         let allPlayers = this.roster.filter(p => positionsToMatch.includes(p.position));
@@ -900,10 +1272,6 @@
 
       handleDragLeave() {
         this.dragOverPosition = null;
-
-        // Formation state
-        this.offenseFormation = 'pro';
-        this.defenseFormation = 'nickel';
         this.render();
       }
 
@@ -951,10 +1319,6 @@
 
         this.draggedPlayer = null;
         this.dragOverPosition = null;
-
-        // Formation state
-        this.offenseFormation = 'pro';
-        this.defenseFormation = 'nickel';
         this.render();
       }
 
@@ -1121,7 +1485,8 @@
           'DB': ['DB', 'CB', 'S', 'SS', 'FS'],
           'K': ['K', 'PK'],
           'P': ['P'],
-          'LS': ['LS', 'SNP']
+          'LS': ['LS', 'SNP'],
+          'RET': ['WR', 'RB', 'DB', 'CB', 'S'] // Returners can be WR, RB, or DB
         };
 
         for (const [group, positions] of Object.entries(groups)) {
@@ -1239,7 +1604,8 @@
           'DB': ['DB', 'CB', 'S', 'SS', 'FS'],
           'K': ['K', 'PK'],
           'P': ['P'],
-          'LS': ['LS', 'SNP']
+          'LS': ['LS', 'SNP'],
+          'RET': ['WR', 'RB', 'DB', 'CB', 'S', 'FB'] // Returners can be skill players
         };
         const positions = groupMapping[group] || [group];
         return this.roster.filter(p => positions.includes(p.position));
@@ -1282,9 +1648,10 @@
             { key: 'S-FS', name: 'FS', depth: 3 },
             { key: 'S-SS', name: 'SS', depth: 3 }
           ],
-          'K': [{ key: 'K', name: 'K', depth: 3 }],
-          'P': [{ key: 'P', name: 'P', depth: 3 }],
-          'LS': [{ key: 'LS', name: 'LS', depth: 3 }]
+          'K': [{ key: 'K', name: 'K', depth: 3 }, { key: 'KOS', name: 'Kickoff', depth: 3 }],
+          'P': [{ key: 'P', name: 'P', depth: 3 }, { key: 'H', name: 'Holder', depth: 3 }],
+          'LS': [{ key: 'LS', name: 'LS', depth: 3 }],
+          'RET': [{ key: 'KR', name: 'Kick Return', depth: 3 }, { key: 'PR', name: 'Punt Return', depth: 3 }]
         };
         return slotMapping[group] || [];
       }
@@ -1802,6 +2169,10 @@
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
               Export
             </button>
+            <button onclick="app.shareAsImage()" class="flex items-center gap-2 text-white border-2 px-4 py-2 rounded-lg font-semibold transition-colors" style="background: ${this.team.primaryColor}; border-color: ${this.team.primaryColor};">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              Share Image
+            </button>
             <button onclick="app.printChart()" class="flex items-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white border-2 px-4 py-2 rounded-lg font-semibold transition-colors" style="border-color: ${this.team.primaryColor};">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
               Print
@@ -1844,23 +2215,42 @@
       renderDepthSelector() {
         return `
           <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-4 border-2" style="border-color: ${this.team.primaryColor};">
-            <div class="flex items-center gap-4 flex-wrap">
-              <span class="font-display font-semibold text-gray-900 dark:text-white">DEPTH LEVEL:</span>
-              <div class="flex gap-2">
-                ${[0, 1, 2].map(level => `
-                  <button
-                    onclick="app.depthLevel = ${level}; app.render()"
-                    class="px-4 py-2 rounded-lg font-semibold transition-all border-2 ${
-                      this.depthLevel === level
-                        ? 'text-white shadow-md scale-105'
-                        : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600'
-                    }"
-                    style="${this.depthLevel === level ? `background: ${this.team.primaryColor}; border-color: ${this.team.primaryColor};` : `border-color: ${this.team.primaryColor};`}"
-                  >
-                    ${level === 0 ? '🥇 Starters' : level === 1 ? '🥈 2nd String' : '🥉 3rd String'}
-                  </button>
-                `).join('')}
+            <div class="flex items-center gap-4 flex-wrap justify-between">
+              <div class="flex items-center gap-4 flex-wrap">
+                <span class="font-display font-semibold text-gray-900 dark:text-white">DEPTH LEVEL:</span>
+                <div class="flex gap-2">
+                  ${!this.twoDeepView ? [0, 1, 2].map(level => `
+                    <button
+                      onclick="app.depthLevel = ${level}; app.render()"
+                      class="px-4 py-2 rounded-lg font-semibold transition-all border-2 ${
+                        this.depthLevel === level
+                          ? 'text-white shadow-md scale-105'
+                          : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600'
+                      }"
+                      style="${this.depthLevel === level ? `background: ${this.team.primaryColor}; border-color: ${this.team.primaryColor};` : `border-color: ${this.team.primaryColor};`}"
+                    >
+                      ${level === 0 ? '🥇 Starters' : level === 1 ? '🥈 2nd String' : '🥉 3rd String'}
+                    </button>
+                  `).join('') : `
+                    <span class="px-4 py-2 text-gray-500 dark:text-gray-400 italic">Showing starter + backup</span>
+                  `}
+                </div>
               </div>
+              <button
+                onclick="app.toggleTwoDeepView()"
+                class="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all border-2 ${
+                  this.twoDeepView
+                    ? 'text-white'
+                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600'
+                }"
+                style="${this.twoDeepView ? `background: ${this.team.primaryColor}; border-color: ${this.team.primaryColor};` : `border-color: ${this.team.primaryColor};`}"
+                title="Show starter and backup together like official depth charts"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="8" rx="1"/><rect x="3" y="13" width="18" height="8" rx="1"/>
+                </svg>
+                Two-Deep View
+              </button>
             </div>
           </div>
         `;
@@ -1925,24 +2315,39 @@
 
       renderPosition(pos, index) {
         const posKey = pos.isRight ? `${pos.code}-R` : pos.code;
-        const player = this.depthChart[posKey]?.[this.depthLevel];
+        const player = this.depthChart[posKey]?.[this.twoDeepView ? 0 : this.depthLevel];
+        const backup = this.twoDeepView ? this.depthChart[posKey]?.[1] : null;
         const isDragOver = this.dragOverPosition?.position === posKey && this.dragOverPosition?.depth === this.depthLevel;
+        const status = player ? this.getPlayerStatus(player) : null;
+        const note = player ? this.getPlayerNote(player) : '';
+        const isBattle = this.positionBattles[posKey];
 
         return `
           <div class="absolute transform -translate-x-1/2 -translate-y-1/2 position-card" style="left: ${pos.x}%; top: ${pos.y}%;" data-position="${posKey}" data-depth="${this.depthLevel}">
             <div
-              class="tooltip ${player ? 'text-white' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-2'} ${isDragOver ? 'drag-over' : ''} rounded-lg shadow-lg transition-colors cursor-pointer position-card-inner"
-              style="min-width: 80px; ${player ? `background: ${this.team.primaryColor};` : `border-color: ${this.team.primaryColor};`}"
-              data-tooltip="${pos.fullName}"
-              onclick="app.selectedSlot = { position: '${posKey}', depth: ${this.depthLevel} }; app.showPlayerModal = true; app.render()"
+              class="tooltip ${player ? 'text-white' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-2'} ${isDragOver ? 'drag-over' : ''} rounded-lg shadow-lg transition-colors cursor-pointer position-card-inner relative"
+              style="min-width: ${this.twoDeepView ? '95px' : '80px'}; ${player ? `background: ${this.team.primaryColor};` : `border-color: ${this.team.primaryColor};`}"
+              data-tooltip="${pos.fullName}${status ? ' [' + status + ']' : ''}${note ? ' - ' + note : ''}"
+              onclick="app.selectedSlot = { position: '${posKey}', depth: ${this.twoDeepView ? 0 : this.depthLevel} }; app.showPlayerModal = true; app.render()"
               draggable="${player ? 'true' : 'false'}"
-              ondragstart="app.handleDragStart(${player ? JSON.stringify(player).replace(/"/g, '&quot;') : 'null'}, '${posKey}', ${this.depthLevel})"
-              ondragover="app.handleDragOver('${posKey}', ${this.depthLevel}, event)"
+              ondragstart="app.handleDragStart(${player ? JSON.stringify(player).replace(/"/g, '&quot;') : 'null'}, '${posKey}', ${this.twoDeepView ? 0 : this.depthLevel})"
+              ondragover="app.handleDragOver('${posKey}', ${this.twoDeepView ? 0 : this.depthLevel}, event)"
               ondragleave="app.handleDragLeave()"
-              ondrop="app.handleDrop('${posKey}', ${this.depthLevel})"
+              ondrop="app.handleDrop('${posKey}', ${this.twoDeepView ? 0 : this.depthLevel})"
             >
-              <div class="px-2 py-1 ${player ? 'border-b border-white/30' : 'border-b-2'} text-center" style="${!player ? `border-color: ${this.team.primaryColor};` : ''}">
+              ${status ? `
+                <div class="absolute -top-1 -right-1 px-1 py-0.5 text-[8px] font-bold text-white rounded ${this.getStatusColor(status)}" title="${status}">
+                  ${this.getStatusBadge(status)}
+                </div>
+              ` : ''}
+              ${note ? `
+                <div class="absolute -top-1 -left-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center" title="${note}">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="3"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                </div>
+              ` : ''}
+              <div class="px-2 py-1 ${player ? 'border-b border-white/30' : 'border-b-2'} text-center flex items-center justify-center gap-1" style="${!player ? `border-color: ${this.team.primaryColor};` : ''}">
                 <div class="text-xs font-display font-bold tracking-wide">${pos.name}</div>
+                ${isBattle ? `<span class="text-[9px] bg-yellow-400 text-yellow-900 px-1 rounded font-bold">OR</span>` : ''}
               </div>
               ${player ? `
                 <div class="px-2 py-2 text-center">
@@ -1951,6 +2356,13 @@
                   </div>
                   <div class="font-display font-bold text-sm">#${player.number}</div>
                   <div class="text-xs truncate max-w-[70px]" title="${player.name}${player.height ? ' • ' + player.height : ''}${player.weight ? ' • ' + player.weight : ''}">${this.getPlayerLastName(player.name)}</div>
+                  ${player.height || player.weight ? `<div class="text-[9px] opacity-70 mt-0.5">${player.height || ''}${player.height && player.weight ? ' • ' : ''}${player.weight || ''}</div>` : ''}
+                  ${this.twoDeepView && backup ? `
+                    <div class="mt-1 pt-1 border-t border-white/20 text-[10px] opacity-80">
+                      <span class="font-semibold">#${backup.number}</span> ${this.getPlayerLastName(backup.name)}
+                      ${this.getPlayerStatus(backup) ? `<span class="ml-1 px-1 rounded text-[8px] ${this.getStatusColor(this.getPlayerStatus(backup))}">${this.getStatusBadge(this.getPlayerStatus(backup))}</span>` : ''}
+                    </div>
+                  ` : ''}
                   ${player.url ? `<a href="${player.url}" target="_blank" onclick="event.stopPropagation()" class="inline-block mt-1 text-white/70 hover:text-white" title="View player page">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                   </a>` : ''}
@@ -2054,12 +2466,27 @@
               </div>
 
               <div class="p-4 overflow-y-auto flex-1">
+                <!-- Position Battle Toggle -->
+                <div class="mb-4 flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border dark:border-gray-600">
+                  <div>
+                    <div class="font-semibold text-gray-900 dark:text-white text-sm">Position Battle</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Mark as "OR" (undecided starter)</div>
+                  </div>
+                  <button
+                    onclick="app.togglePositionBattle('${position}')"
+                    class="px-3 py-1.5 rounded-lg font-semibold text-sm transition-colors ${this.positionBattles[position] ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'}"
+                  >
+                    ${this.positionBattles[position] ? '✓ OR' : 'Set OR'}
+                  </button>
+                </div>
+
                 ${currentPlayer ? `
                   <div class="mb-4 p-4 rounded-lg border" style="background: ${this.team.primaryColor}10; border-color: ${this.team.primaryColor}30;">
                     <div class="text-xs font-semibold mb-2 uppercase tracking-wide" style="color: ${this.team.primaryColor};">Current Player</div>
-                    <div class="flex items-center gap-3">
-                      <div class="w-12 h-12 text-white rounded-full flex items-center justify-center font-bold text-lg" style="background: ${this.team.primaryColor};">
+                    <div class="flex items-center gap-3 mb-3">
+                      <div class="w-12 h-12 text-white rounded-full flex items-center justify-center font-bold text-lg relative" style="background: ${this.team.primaryColor};">
                         ${this.getPlayerInitials(currentPlayer.name)}
+                        ${this.getPlayerStatus(currentPlayer) ? `<span class="absolute -top-1 -right-1 px-1 text-[8px] font-bold text-white rounded ${this.getStatusColor(this.getPlayerStatus(currentPlayer))}">${this.getStatusBadge(this.getPlayerStatus(currentPlayer))}</span>` : ''}
                       </div>
                       <div class="flex-1">
                         <div class="font-bold text-gray-900 dark:text-white">
@@ -2072,6 +2499,36 @@
                       <button onclick="app.removePlayer('${position}', ${depth})" class="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Remove" aria-label="Remove player">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                       </button>
+                    </div>
+
+                    <!-- Status Dropdown -->
+                    <div class="mb-3">
+                      <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Status / Availability</label>
+                      <select
+                        onchange="app.setPlayerStatus(${JSON.stringify(currentPlayer).replace(/"/g, '&quot;')}, this.value || null)"
+                        class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      >
+                        <option value="" ${!this.getPlayerStatus(currentPlayer) ? 'selected' : ''}>Active / Healthy</option>
+                        <option value="PROBABLE" ${this.getPlayerStatus(currentPlayer) === 'PROBABLE' ? 'selected' : ''}>Probable</option>
+                        <option value="QUESTIONABLE" ${this.getPlayerStatus(currentPlayer) === 'QUESTIONABLE' ? 'selected' : ''}>Questionable</option>
+                        <option value="DOUBTFUL" ${this.getPlayerStatus(currentPlayer) === 'DOUBTFUL' ? 'selected' : ''}>Doubtful</option>
+                        <option value="OUT" ${this.getPlayerStatus(currentPlayer) === 'OUT' ? 'selected' : ''}>Out (Injured)</option>
+                        <option value="SUSPENDED" ${this.getPlayerStatus(currentPlayer) === 'SUSPENDED' ? 'selected' : ''}>Suspended</option>
+                        <option value="PORTAL" ${this.getPlayerStatus(currentPlayer) === 'PORTAL' ? 'selected' : ''}>Transfer Portal</option>
+                        <option value="REDSHIRT" ${this.getPlayerStatus(currentPlayer) === 'REDSHIRT' ? 'selected' : ''}>Redshirt</option>
+                      </select>
+                    </div>
+
+                    <!-- Notes -->
+                    <div>
+                      <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Notes</label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Breakout candidate, Coming off ACL..."
+                        value="${this.getPlayerNote(currentPlayer).replace(/"/g, '&quot;')}"
+                        onchange="app.setPlayerNote(${JSON.stringify(currentPlayer).replace(/"/g, '&quot;')}, this.value)"
+                        class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
                     </div>
                   </div>
                 ` : ''}
