@@ -2326,7 +2326,7 @@
           <div class="absolute transform -translate-x-1/2 -translate-y-1/2 position-card" style="left: ${pos.x}%; top: ${pos.y}%;" data-position="${posKey}" data-depth="${this.depthLevel}">
             <div
               class="tooltip ${player ? 'text-white' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-2'} ${isDragOver ? 'drag-over' : ''} rounded-lg shadow-lg transition-colors cursor-pointer position-card-inner relative"
-              style="min-width: ${this.twoDeepView ? '95px' : '80px'}; ${player ? `background: ${this.team.primaryColor};` : `border-color: ${this.team.primaryColor};`}"
+              style="min-width: 80px; ${player ? `background: ${this.team.primaryColor};` : `border-color: ${this.team.primaryColor};`}"
               data-tooltip="${pos.fullName}${status ? ' [' + status + ']' : ''}${note ? ' - ' + note : ''}"
               onclick="app.selectedSlot = { position: '${posKey}', depth: ${this.twoDeepView ? 0 : this.depthLevel} }; app.showPlayerModal = true; app.render()"
               draggable="${player ? 'true' : 'false'}"
@@ -2350,20 +2350,19 @@
                 ${isBattle ? `<span class="text-[9px] bg-yellow-400 text-yellow-900 px-1 rounded font-bold">OR</span>` : ''}
               </div>
               ${player ? `
-                <div class="px-2 py-2 text-center">
+                <div class="px-2 py-2 text-center relative">
                   <div class="w-8 h-8 mx-auto mb-1 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">
                     ${this.getPlayerInitials(player.name)}
                   </div>
                   <div class="font-display font-bold text-sm">#${player.number}</div>
                   <div class="text-xs truncate max-w-[70px]" title="${player.name}${player.height ? ' • ' + player.height : ''}${player.weight ? ' • ' + player.weight : ''}">${this.getPlayerLastName(player.name)}</div>
-                  ${player.height || player.weight ? `<div class="text-[9px] opacity-70 mt-0.5">${player.height || ''}${player.height && player.weight ? ' • ' : ''}${player.weight || ''}</div>` : ''}
+                  ${!this.twoDeepView && (player.height || player.weight) ? `<div class="text-[9px] opacity-70 mt-0.5">${player.height || ''}${player.height && player.weight ? ' • ' : ''}${player.weight || ''}</div>` : ''}
                   ${this.twoDeepView && backup ? `
-                    <div class="mt-1 pt-1 border-t border-white/20 text-[10px] opacity-80">
-                      <span class="font-semibold">#${backup.number}</span> ${this.getPlayerLastName(backup.name)}
-                      ${this.getPlayerStatus(backup) ? `<span class="ml-1 px-1 rounded text-[8px] ${this.getStatusColor(this.getPlayerStatus(backup))}">${this.getStatusBadge(this.getPlayerStatus(backup))}</span>` : ''}
+                    <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-white/90 text-gray-800 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap" title="#${backup.number} ${backup.name}${this.getPlayerStatus(backup) ? ' [' + this.getPlayerStatus(backup) + ']' : ''}">
+                      2nd: #${backup.number}
                     </div>
                   ` : ''}
-                  ${player.url ? `<a href="${player.url}" target="_blank" onclick="event.stopPropagation()" class="inline-block mt-1 text-white/70 hover:text-white" title="View player page">
+                  ${!this.twoDeepView && player.url ? `<a href="${player.url}" target="_blank" onclick="event.stopPropagation()" class="inline-block mt-1 text-white/70 hover:text-white" title="View player page">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                   </a>` : ''}
                 </div>
