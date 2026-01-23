@@ -809,9 +809,9 @@
         if (positionToSearch === 'DE' || positionToSearch === 'DT' || positionToSearch === 'NT') {
           positionsToMatch.push('DL', 'DE', 'DT', 'NT', 'EDGE');
         }
-        // Allow DB players in CB and S positions
+        // Allow DB, CB, and S players in CB and S positions
         if (positionToSearch === 'CB' || positionToSearch === 'S') {
-          positionsToMatch.push('DB');
+          positionsToMatch.push('DB', 'CB', 'S');
         }
 
         let allPlayers = this.roster.filter(p => positionsToMatch.includes(p.position));
@@ -910,8 +910,8 @@
         const positionGroups = {
           'WR': ['WR'],
           'OL': ['OT', 'OG', 'C'],
-          'CB': ['CB', 'DB'],
-          'S': ['S', 'DB'],
+          'CB': ['CB', 'DB', 'S'],
+          'S': ['S', 'DB', 'CB'],
           'LB': ['LB'],
           'DE': ['DE'],
           'DT': ['DT'],
