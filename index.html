@@ -2359,7 +2359,7 @@
                   ${!this.twoDeepView && (player.height || player.weight) ? `<div class="text-[9px] opacity-70 mt-0.5">${player.height || ''}${player.height && player.weight ? ' • ' : ''}${player.weight || ''}</div>` : ''}
                   ${this.twoDeepView && backup ? `
                     <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-white/90 text-gray-800 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap" title="#${backup.number} ${backup.name}${this.getPlayerStatus(backup) ? ' [' + this.getPlayerStatus(backup) + ']' : ''}">
-                      2nd: #${backup.number}
+                      #${backup.number} ${this.getPlayerLastName(backup.name)}
                     </div>
                   ` : ''}
                   ${!this.twoDeepView && player.url ? `<a href="${player.url}" target="_blank" onclick="event.stopPropagation()" class="inline-block mt-1 text-white/70 hover:text-white" title="View player page">
