@@ -613,6 +613,12 @@
         this.showStatusModal = false;
         this.statusEditPlayer = null;
 
+        // Touch/swipe tracking for mobile tab switching
+        this.touchStartX = 0;
+        this.touchStartY = 0;
+        this.touchEndX = 0;
+        this.touchEndY = 0;
+
         // Formation state
         this.offenseFormation = 'pro';
         this.defenseFormation = 'nickel';
@@ -3052,7 +3058,49 @@
         `;
       }
 
+      handleTouchStart(e) {
+        this.touchStartX = e.changedTouches[0].screenX;
+        this.touchStartY = e.changedTouches[0].screenY;
+      }
+
+      handleTouchEnd(e) {
+        this.touchEndX = e.changedTouches[0].screenX;
+        this.touchEndY = e.changedTouches[0].screenY;
+        this.handleSwipeGesture();
+      }
+
+      handleSwipeGesture() {
+        const deltaX = this.touchEndX - this.touchStartX;
+        const deltaY = this.touchEndY - this.touchStartY;
+        const minSwipeDistance = 50;
+
+        // Only trigger if horizontal swipe is greater than vertical (not scrolling)
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > minSwipeDistance) {
+          const tabs = ['offense', 'defense', 'special'];
+          const currentIndex = tabs.indexOf(this.activeTab);
+
+          if (deltaX < 0) {
+            // Swipe left - go to next tab
+            const nextIndex = (currentIndex + 1) % tabs.length;
+            this.activeTab = tabs[nextIndex];
+            this.render();
+          } else {
+            // Swipe right - go to previous tab
+            const prevIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+            this.activeTab = tabs[prevIndex];
+            this.render();
+          }
+        }
+      }
+
       attachEventListeners() {
+        // Swipe gesture listeners for mobile tab switching
+        const mobileListView = document.querySelector('.mobile-list-view');
+        if (mobileListView) {
+          mobileListView.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: true });
+          mobileListView.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: true });
+        }
+
         const textarea = document.getElementById('importTextarea');
         if (textarea) {
           textarea.addEventListener('input', (e) => { this.importText = e.target.value; });
