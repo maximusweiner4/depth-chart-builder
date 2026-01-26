@@ -226,9 +226,12 @@
     @media (max-width: 640px) and (orientation: portrait) {
       .field-view { display: none; }
       .mobile-list-view { display: block !important; }
+      .mobile-controls-bar { display: block !important; }
+      .desktop-only { display: none !important; }
     }
 
     .mobile-list-view { display: none; }
+    .mobile-controls-bar { display: none; }
   </style>
 </head>
 <body class="min-h-screen transition-colors duration-300 grain-overlay">
@@ -1690,8 +1693,11 @@
             ${this.renderHeader()}
             ${this.renderButtons()}
             ${this.renderTabs()}
-            ${this.activeTab !== 'special' ? this.renderDepthSelector() : ''}
-            ${this.activeTab !== 'special' ? this.renderFormationSelector() : ''}
+            ${this.renderMobileControls()}
+            <div class="desktop-only">
+              ${this.activeTab !== 'special' ? this.renderDepthSelector() : ''}
+              ${this.activeTab !== 'special' ? this.renderFormationSelector() : ''}
+            </div>
             ${this.renderField()}
             ${this.renderKeyboardHints()}
           </div>
@@ -2151,35 +2157,35 @@
 
       renderButtons() {
         return `
-          <div class="flex flex-wrap gap-3 mb-6 no-print">
-            <button onclick="app.undo()" class="flex items-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white border-2 px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50" style="border-color: ${this.team.primaryColor};" ${this.undoStack.length === 0 ? 'disabled' : ''}>
+          <div class="flex flex-wrap gap-2 sm:gap-3 mb-4 sm:mb-6 no-print">
+            <button onclick="app.undo()" class="flex items-center justify-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white border-2 px-2 sm:px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50" style="border-color: ${this.team.primaryColor};" ${this.undoStack.length === 0 ? 'disabled' : ''} title="Undo">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
-              Undo
+              <span class="hidden sm:inline">Undo</span>
             </button>
-            <button onclick="app.redo()" class="flex items-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white border-2 px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50" style="border-color: ${this.team.primaryColor};" ${this.redoStack.length === 0 ? 'disabled' : ''}>
+            <button onclick="app.redo()" class="flex items-center justify-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white border-2 px-2 sm:px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50" style="border-color: ${this.team.primaryColor};" ${this.redoStack.length === 0 ? 'disabled' : ''} title="Redo">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.13-9.36L23 10"/></svg>
-              Redo
+              <span class="hidden sm:inline">Redo</span>
             </button>
-            <div class="w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
-            <button onclick="app.showImportModal = true; app.render()" class="flex items-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white border-2 px-4 py-2 rounded-lg font-semibold transition-colors" style="border-color: ${this.team.primaryColor};">
+            <div class="w-px bg-gray-300 dark:bg-gray-600 mx-0.5 sm:mx-1 hidden sm:block"></div>
+            <button onclick="app.showImportModal = true; app.render()" class="flex items-center justify-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white border-2 px-2 sm:px-4 py-2 rounded-lg font-semibold transition-colors" style="border-color: ${this.team.primaryColor};" title="Import">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-              Import
+              <span class="hidden sm:inline">Import</span>
             </button>
-            <button onclick="app.exportDepthChart()" class="flex items-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white border-2 px-4 py-2 rounded-lg font-semibold transition-colors" style="border-color: ${this.team.primaryColor};">
+            <button onclick="app.exportDepthChart()" class="flex items-center justify-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white border-2 px-2 sm:px-4 py-2 rounded-lg font-semibold transition-colors" style="border-color: ${this.team.primaryColor};" title="Export">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-              Export
+              <span class="hidden sm:inline">Export</span>
             </button>
-            <button onclick="app.shareAsImage()" class="flex items-center gap-2 text-white border-2 px-4 py-2 rounded-lg font-semibold transition-colors" style="background: ${this.team.primaryColor}; border-color: ${this.team.primaryColor};">
+            <button onclick="app.shareAsImage()" class="flex items-center justify-center gap-2 text-white border-2 px-2 sm:px-4 py-2 rounded-lg font-semibold transition-colors" style="background: ${this.team.primaryColor}; border-color: ${this.team.primaryColor};" title="Share Image">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-              Share Image
+              <span class="hidden sm:inline">Share</span>
             </button>
-            <button onclick="app.printChart()" class="flex items-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white border-2 px-4 py-2 rounded-lg font-semibold transition-colors" style="border-color: ${this.team.primaryColor};">
+            <button onclick="app.printChart()" class="flex items-center justify-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white border-2 px-2 sm:px-4 py-2 rounded-lg font-semibold transition-colors" style="border-color: ${this.team.primaryColor};" title="Print">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-              Print
+              <span class="hidden sm:inline">Print</span>
             </button>
-            <button onclick="app.showResetConfirmation()" class="flex items-center gap-2 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 border-2 border-red-300 dark:border-red-800 px-4 py-2 rounded-lg font-semibold transition-colors">
+            <button onclick="app.showResetConfirmation()" class="flex items-center justify-center gap-2 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 border-2 border-red-300 dark:border-red-800 px-2 sm:px-4 py-2 rounded-lg font-semibold transition-colors" title="Reset">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-              Reset
+              <span class="hidden sm:inline">Reset</span>
             </button>
           </div>
         `;
@@ -2286,6 +2292,70 @@
         `;
       }
 
+      renderMobileControls() {
+        const formations = this.activeTab === 'offense' ? FORMATIONS.offense : FORMATIONS.defense;
+        const currentFormation = this.activeTab === 'offense' ? this.offenseFormation : this.defenseFormation;
+
+        return `
+          <div class="mobile-controls-bar bg-white dark:bg-gray-800 rounded-lg shadow-md p-3 mb-4 border-2 space-y-3" style="border-color: ${this.team.primaryColor};">
+            <!-- Depth Level Row -->
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-semibold text-gray-600 dark:text-gray-400 w-14 flex-shrink-0">Depth:</span>
+              <div class="flex gap-1 flex-1">
+                ${!this.twoDeepView ? [0, 1, 2].map(level => `
+                  <button
+                    onclick="app.depthLevel = ${level}; app.render()"
+                    class="flex-1 px-2 py-1.5 rounded text-xs font-semibold transition-all ${
+                      this.depthLevel === level
+                        ? 'text-white'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white'
+                    }"
+                    style="${this.depthLevel === level ? `background: ${this.team.primaryColor};` : ''}"
+                  >
+                    ${level === 0 ? '1st' : level === 1 ? '2nd' : '3rd'}
+                  </button>
+                `).join('') : `
+                  <span class="flex-1 text-xs text-gray-500 dark:text-gray-400 italic text-center">Two-Deep Active</span>
+                `}
+              </div>
+              <button
+                onclick="app.toggleTwoDeepView()"
+                class="px-2 py-1.5 rounded text-xs font-semibold transition-all flex items-center gap-1 ${
+                  this.twoDeepView
+                    ? 'text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white'
+                }"
+                style="${this.twoDeepView ? `background: ${this.team.primaryColor};` : ''}"
+                title="Two-Deep View"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="8" rx="1"/><rect x="3" y="13" width="18" height="8" rx="1"/>
+                </svg>
+                2-Deep
+              </button>
+            </div>
+
+            <!-- Formation Row (only for offense/defense) -->
+            ${this.activeTab !== 'special' ? `
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-semibold text-gray-600 dark:text-gray-400 w-14 flex-shrink-0">Form:</span>
+                <select
+                  onchange="app.changeFormation('${this.activeTab}', this.value)"
+                  class="flex-1 px-2 py-1.5 rounded text-xs font-semibold border bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer"
+                  style="border-color: ${this.team.primaryColor};"
+                >
+                  ${Object.entries(formations).map(([key, formation]) => `
+                    <option value="${key}" ${key === currentFormation ? 'selected' : ''}>
+                      ${formation.name}
+                    </option>
+                  `).join('')}
+                </select>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
       renderField() {
         const positions = this.getPositions(this.activeTab);
 
@@ -2301,12 +2371,12 @@
           </div>
 
           <div class="mobile-list-view bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-            <div class="bg-green-700 p-3 text-center">
+            <div class="p-3 text-center" style="background: ${this.team.primaryColor};">
               <span class="text-white font-display text-xl font-bold tracking-widest">
                 ${this.activeTab === 'offense' ? 'OFFENSE' : this.activeTab === 'defense' ? 'DEFENSE' : 'SPECIAL TEAMS'}
               </span>
             </div>
-            <div class="divide-y divide-gray-200 dark:divide-gray-700">
+            <div>
               ${positions.map((pos, index) => this.renderMobilePosition(pos, index)).join('')}
             </div>
           </div>
@@ -2380,40 +2450,97 @@
 
       renderMobilePosition(pos, index) {
         const posKey = pos.isRight ? `${pos.code}-R` : pos.code;
-        const player = this.depthChart[posKey]?.[this.depthLevel];
+        const player = this.depthChart[posKey]?.[this.twoDeepView ? 0 : this.depthLevel];
+        const backup = this.twoDeepView ? this.depthChart[posKey]?.[1] : null;
+        const status = player ? this.getPlayerStatus(player) : null;
+        const note = player ? this.getPlayerNote(player) : '';
+        const isBattle = this.positionBattles[posKey];
+        const backupStatus = backup ? this.getPlayerStatus(backup) : null;
+        const backupNote = backup ? this.getPlayerNote(backup) : '';
 
         return `
-          <div
-            class="flex items-center p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            onclick="app.selectedSlot = { position: '${posKey}', depth: ${this.depthLevel} }; app.showPlayerModal = true; app.render()"
-          >
-            <div class="w-16 flex-shrink-0">
-              <div class="text-white text-center py-1 px-2 rounded font-display font-bold text-sm" style="background: ${this.team.primaryColor};">
-                ${pos.name}
+          <div class="border-b border-gray-200 dark:border-gray-700">
+            <!-- Starter Row -->
+            <div
+              class="flex items-center p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              onclick="app.selectedSlot = { position: '${posKey}', depth: ${this.twoDeepView ? 0 : this.depthLevel} }; app.showPlayerModal = true; app.render()"
+            >
+              <div class="w-16 flex-shrink-0">
+                <div class="text-white text-center py-1 px-2 rounded font-display font-bold text-sm relative" style="background: ${this.team.primaryColor};">
+                  ${pos.name}
+                  ${isBattle ? `<span class="absolute -top-1 -right-1 text-[8px] bg-yellow-400 text-yellow-900 px-1 rounded font-bold">OR</span>` : ''}
+                </div>
+              </div>
+              <div class="flex-1 ml-3">
+                <div class="text-xs text-gray-500 dark:text-gray-400 mb-0.5">${pos.fullName}</div>
+                ${player ? `
+                  <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 text-white rounded-full flex items-center justify-center text-xs font-bold relative" style="background: ${this.team.primaryColor};">
+                      ${this.getPlayerInitials(player.name)}
+                      ${status ? `<span class="absolute -top-1 -right-1 px-1 py-0.5 text-[7px] font-bold text-white rounded ${this.getStatusColor(status)}">${this.getStatusBadge(status)}</span>` : ''}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="font-semibold text-gray-900 dark:text-white text-sm flex items-center gap-1 flex-wrap">
+                        <span>#${player.number} ${player.name}</span>
+                        ${note ? `<span class="text-yellow-500" title="${note}">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        </span>` : ''}
+                        ${status ? `<span class="text-[10px] px-1.5 py-0.5 rounded ${this.getStatusColor(status)} text-white">${status}</span>` : ''}
+                      </div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">${player.year}${player.height ? ` • ${player.height}` : ''}${player.weight ? ` • ${player.weight}` : ''}</div>
+                    </div>
+                    ${player.url ? `<a href="${player.url}" target="_blank" onclick="event.stopPropagation()" class="p-1 text-gray-400 hover:text-gray-600 flex-shrink-0">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                    </a>` : ''}
+                  </div>
+                ` : `
+                  <div class="flex items-center gap-2 text-gray-400">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span class="text-sm">Tap to assign</span>
+                  </div>
+                `}
               </div>
             </div>
-            <div class="flex-1 ml-3">
-              <div class="text-xs text-gray-500 dark:text-gray-400 mb-0.5">${pos.fullName}</div>
-              ${player ? `
-                <div class="flex items-center gap-2">
-                  <div class="w-8 h-8 text-white rounded-full flex items-center justify-center text-xs font-bold" style="background: ${this.team.primaryColor};">
-                    ${this.getPlayerInitials(player.name)}
+
+            <!-- Backup Row (Two-Deep View) -->
+            ${this.twoDeepView ? `
+              <div
+                class="flex items-center p-2 pl-6 cursor-pointer bg-gray-50 dark:bg-gray-750 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border-t border-gray-100 dark:border-gray-700"
+                onclick="app.selectedSlot = { position: '${posKey}', depth: 1 }; app.showPlayerModal = true; app.render()"
+              >
+                <div class="w-10 flex-shrink-0">
+                  <div class="text-gray-500 dark:text-gray-400 text-center py-0.5 px-1 rounded text-[10px] font-bold bg-gray-200 dark:bg-gray-600">
+                    2nd
                   </div>
-                  <div class="flex-1">
-                    <div class="font-semibold text-gray-900 dark:text-white text-sm">#${player.number} ${player.name}</div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400">${player.year}${player.height ? ` • ${player.height}` : ''}${player.weight ? ` • ${player.weight}` : ''}</div>
-                  </div>
-                  ${player.url ? `<a href="${player.url}" target="_blank" onclick="event.stopPropagation()" class="p-1 text-gray-400 hover:text-gray-600">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                  </a>` : ''}
                 </div>
-              ` : `
-                <div class="flex items-center gap-2 text-gray-400">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  <span class="text-sm">Tap to assign</span>
+                <div class="flex-1 ml-2">
+                  ${backup ? `
+                    <div class="flex items-center gap-2">
+                      <div class="w-6 h-6 text-white rounded-full flex items-center justify-center text-[10px] font-bold relative" style="background: ${this.team.primaryColor}80;">
+                        ${this.getPlayerInitials(backup.name)}
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="text-gray-700 dark:text-gray-300 text-xs flex items-center gap-1 flex-wrap">
+                          <span>#${backup.number} ${backup.name}</span>
+                          ${backupNote ? `<span class="text-yellow-500" title="${backupNote}">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                          </span>` : ''}
+                          ${backupStatus ? `<span class="text-[9px] px-1 py-0.5 rounded ${this.getStatusColor(backupStatus)} text-white">${backupStatus}</span>` : ''}
+                        </div>
+                      </div>
+                      ${backup.url ? `<a href="${backup.url}" target="_blank" onclick="event.stopPropagation()" class="p-1 text-gray-400 hover:text-gray-600 flex-shrink-0">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                      </a>` : ''}
+                    </div>
+                  ` : `
+                    <div class="flex items-center gap-2 text-gray-400">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      <span class="text-xs">Tap to assign backup</span>
+                    </div>
+                  `}
                 </div>
-              `}
-            </div>
+              </div>
+            ` : ''}
           </div>
         `;
       }
