@@ -6,3 +6,4 @@ scripts/page-content.txt
 .vercel
 .env
 .env.local
+package-lock.json

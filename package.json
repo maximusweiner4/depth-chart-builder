@@ -6,7 +6,15 @@
   "engines": {
     "node": ">=18"
   },
+  "scripts": {
+    "build:css": "tailwindcss -i src/input.css -o dist/tailwind.css --minify",
+    "watch:css": "tailwindcss -i src/input.css -o dist/tailwind.css --watch",
+    "build": "npm run build:css"
+  },
   "dependencies": {
     "cheerio": "^1.0.0-rc.12"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.19"
   }
 }

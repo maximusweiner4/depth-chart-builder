@@ -3,26 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#041E42" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1a1a2e" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1f2937" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="Build and customize interactive college football depth charts. Import rosters, assign players, track injuries, and share your depth chart.">
+  <meta property="og:title" content="College Football Depth Chart Builder">
+  <meta property="og:description" content="Build and customize interactive college football depth charts with real roster data.">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="College Football Depth Chart Builder">
+  <meta name="twitter:description" content="Build and customize interactive college football depth charts with real roster data.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏈</text></svg>">
   <title>College Football Depth Chart Builder</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/dist/tailwind.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: {
-            'display': ['Bebas Neue', 'sans-serif'],
-            'body': ['Plus Jakarta Sans', 'sans-serif'],
-          }
-        }
-      }
-    }
-  </script>
   <style>
     :root {
       --grain-opacity: 0.03;
@@ -238,6 +233,29 @@
   <div id="app"></div>
 
   <script>
+    // HTML escaping utility to prevent XSS
+    function escapeHtml(str) {
+      if (str == null) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // Safe URL helper - blocks javascript: and data: protocols
+    function safeUrl(url) {
+      if (!url) return '';
+      try {
+        const parsed = new URL(url, window.location.origin);
+        if (!['http:', 'https:'].includes(parsed.protocol)) return '';
+        return escapeHtml(url);
+      } catch {
+        return '';
+      }
+    }
+
     // Position definitions
     // Formation definitions for offense and defense
     const FORMATIONS = {
@@ -613,6 +631,9 @@
         this.showStatusModal = false;
         this.statusEditPlayer = null;
 
+        // Setup import tab state
+        this.setupImportTab = 'url';
+
         // Touch/swipe tracking for mobile tab switching
         this.touchStartX = 0;
         this.touchStartY = 0;
@@ -651,20 +672,25 @@
       loadTeam() {
         const saved = localStorage.getItem('generic-team-config');
         if (saved) {
-          const savedTeam = JSON.parse(saved);
-          // Check if the team has changed (new scrape)
-          if (savedTeam.name !== DEFAULT_TEAM.name || savedTeam.rosterUrl !== DEFAULT_TEAM.rosterUrl) {
-            // Team changed - clear old data and use new defaults
-            console.log(`Team changed from ${savedTeam.name} to ${DEFAULT_TEAM.name}, resetting data...`);
+          try {
+            const savedTeam = JSON.parse(saved);
+            // Check if the team has changed (new scrape)
+            if (savedTeam.name !== DEFAULT_TEAM.name || savedTeam.rosterUrl !== DEFAULT_TEAM.rosterUrl) {
+              // Team changed - clear old data and use new defaults
+              console.log(`Team changed from ${savedTeam.name} to ${DEFAULT_TEAM.name}, resetting data...`);
+              localStorage.removeItem('generic-team-config');
+              localStorage.removeItem('generic-roster');
+              localStorage.removeItem('generic-depth-chart');
+              this.team = { ...DEFAULT_TEAM };
+              this.roster = [...DEFAULT_ROSTER];
+              this.initializeEmptyChart();
+              return;
+            }
+            this.team = { ...DEFAULT_TEAM, ...savedTeam };
+          } catch (e) {
+            console.error('Failed to parse saved team config, using defaults:', e);
             localStorage.removeItem('generic-team-config');
-            localStorage.removeItem('generic-roster');
-            localStorage.removeItem('generic-depth-chart');
-            this.team = { ...DEFAULT_TEAM };
-            this.roster = [...DEFAULT_ROSTER];
-            this.initializeEmptyChart();
-            return;
           }
-          this.team = { ...DEFAULT_TEAM, ...savedTeam };
         }
       }
 
@@ -679,18 +705,35 @@
       }
 
       adjustColor(color, amount) {
-        // Simple color lightening
-        const hex = color.replace('#', '');
-        const r = Math.min(255, parseInt(hex.substr(0, 2), 16) + amount);
-        const g = Math.min(255, parseInt(hex.substr(2, 2), 16) + amount);
-        const b = Math.min(255, parseInt(hex.substr(4, 2), 16) + amount);
+        // Parse color to RGB components
+        let r, g, b;
+        const rgbMatch = color.match(/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i);
+        if (rgbMatch) {
+          r = parseInt(rgbMatch[1]);
+          g = parseInt(rgbMatch[2]);
+          b = parseInt(rgbMatch[3]);
+        } else {
+          const hex = color.replace('#', '');
+          r = parseInt(hex.substr(0, 2), 16);
+          g = parseInt(hex.substr(2, 2), 16);
+          b = parseInt(hex.substr(4, 2), 16);
+        }
+        // Fallback if parsing failed
+        if (isNaN(r) || isNaN(g) || isNaN(b)) return color;
+        r = Math.min(255, r + amount);
+        g = Math.min(255, g + amount);
+        b = Math.min(255, b + amount);
         return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
       }
 
       loadDarkMode() {
         const saved = localStorage.getItem('generic-dark-mode');
         if (saved !== null) {
-          this.darkMode = JSON.parse(saved);
+          try {
+            this.darkMode = JSON.parse(saved);
+          } catch {
+            this.darkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          }
         } else {
           this.darkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
         }
@@ -713,38 +756,50 @@
       }
 
       loadDepthChart() {
-        const saved = localStorage.getItem('generic-depth-chart');
-        if (saved) {
-          this.depthChart = JSON.parse(saved);
-        } else {
+        try {
+          const saved = localStorage.getItem('generic-depth-chart');
+          if (saved) {
+            this.depthChart = JSON.parse(saved);
+          } else {
+            this.initializeEmptyChart();
+          }
+        } catch (e) {
+          console.error('Failed to parse depth chart, resetting:', e);
+          localStorage.removeItem('generic-depth-chart');
           this.initializeEmptyChart();
         }
         // Load player statuses
-        const savedStatuses = localStorage.getItem('generic-player-statuses');
-        if (savedStatuses) {
-          this.playerStatuses = JSON.parse(savedStatuses);
-        }
+        try {
+          const savedStatuses = localStorage.getItem('generic-player-statuses');
+          if (savedStatuses) this.playerStatuses = JSON.parse(savedStatuses);
+        } catch { localStorage.removeItem('generic-player-statuses'); }
         // Load player notes
-        const savedNotes = localStorage.getItem('generic-player-notes');
-        if (savedNotes) {
-          this.playerNotes = JSON.parse(savedNotes);
-        }
+        try {
+          const savedNotes = localStorage.getItem('generic-player-notes');
+          if (savedNotes) this.playerNotes = JSON.parse(savedNotes);
+        } catch { localStorage.removeItem('generic-player-notes'); }
         // Load position battles
-        const savedBattles = localStorage.getItem('generic-position-battles');
-        if (savedBattles) {
-          this.positionBattles = JSON.parse(savedBattles);
-        }
+        try {
+          const savedBattles = localStorage.getItem('generic-position-battles');
+          if (savedBattles) this.positionBattles = JSON.parse(savedBattles);
+        } catch { localStorage.removeItem('generic-position-battles'); }
         // Load two-deep view preference
-        const savedTwoDeep = localStorage.getItem('generic-two-deep-view');
-        if (savedTwoDeep !== null) {
-          this.twoDeepView = JSON.parse(savedTwoDeep);
-        }
+        try {
+          const savedTwoDeep = localStorage.getItem('generic-two-deep-view');
+          if (savedTwoDeep !== null) this.twoDeepView = JSON.parse(savedTwoDeep);
+        } catch { localStorage.removeItem('generic-two-deep-view'); }
       }
 
       loadRoster() {
-        const saved = localStorage.getItem('generic-roster');
-        if (saved) {
-          this.roster = JSON.parse(saved);
+        try {
+          const saved = localStorage.getItem('generic-roster');
+          if (saved) {
+            this.roster = JSON.parse(saved);
+          }
+        } catch (e) {
+          console.error('Failed to parse roster, resetting:', e);
+          localStorage.removeItem('generic-roster');
+          this.roster = [];
         }
       }
 
@@ -1001,7 +1056,18 @@
             ctx.strokeStyle = this.team.primaryColor;
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.roundRect(x - boxWidth/2, y - boxHeight/2, boxWidth, boxHeight, 8);
+            if (ctx.roundRect) {
+              ctx.roundRect(x - boxWidth/2, y - boxHeight/2, boxWidth, boxHeight, 8);
+            } else {
+              // Fallback for browsers without roundRect
+              const rx = x - boxWidth/2, ry = y - boxHeight/2, w = boxWidth, h = boxHeight, rad = 8;
+              ctx.moveTo(rx + rad, ry);
+              ctx.arcTo(rx + w, ry, rx + w, ry + h, rad);
+              ctx.arcTo(rx + w, ry + h, rx, ry + h, rad);
+              ctx.arcTo(rx, ry + h, rx, ry, rad);
+              ctx.arcTo(rx, ry, rx + w, ry, rad);
+              ctx.closePath();
+            }
             ctx.fill();
             ctx.stroke();
 
@@ -1801,7 +1867,7 @@
                     type="text"
                     id="teamNameInput"
                     placeholder="e.g., Ohio State Buckeyes"
-                    value="${this.team.name !== 'Your Team' ? this.team.name : ''}"
+                    value="${this.team.name !== 'Your Team' ? escapeHtml(this.team.name) : ''}"
                     class="w-full px-4 py-2 border-2 border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
@@ -1889,7 +1955,7 @@
 
                   ${this.importMessage ? `
                     <div class="mt-3 p-2 rounded ${this.importMessage.includes('Success') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'} text-sm">
-                      ${this.importMessage}
+                      ${escapeHtml(this.importMessage)}
                     </div>
                   ` : ''}
                 </div>
@@ -2017,7 +2083,7 @@
                   <input
                     type="text"
                     id="settingsTeamName"
-                    value="${this.team.name}"
+                    value="${escapeHtml(this.team.name)}"
                     class="w-full px-4 py-2 border-2 border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
@@ -2067,10 +2133,10 @@
             <div class="flex items-center justify-between flex-wrap gap-4 relative">
               <div class="flex items-center gap-5">
                 <div class="w-18 h-18 rounded-2xl flex items-center justify-center text-white font-display text-2xl flex-shrink-0 shadow-lg" style="background: linear-gradient(135deg, ${this.team.primaryColor} 0%, ${this.team.primaryColor}dd 100%); width: 72px; height: 72px;">
-                  <span>${this.team.name.split(' ').map(w => w[0]).join('').substring(0, 3)}</span>
+                  <span>${escapeHtml(this.team.name.split(' ').map(w => w[0]).join('').substring(0, 3))}</span>
                 </div>
                 <div>
-                  <h1 class="font-display text-4xl font-bold mb-1" style="letter-spacing: 0.05em;">${this.team.name.toUpperCase()}</h1>
+                  <h1 class="font-display text-4xl font-bold mb-1" style="letter-spacing: 0.05em;">${escapeHtml(this.team.name.toUpperCase())}</h1>
                   <p class="text-gray-500 dark:text-gray-400 font-medium text-sm uppercase tracking-wider">Interactive Depth Chart Builder</p>
                 </div>
               </div>
@@ -2403,7 +2469,7 @@
             <div
               class="tooltip ${player ? 'text-white' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-2'} ${isDragOver ? 'drag-over' : ''} rounded-lg shadow-lg transition-colors cursor-pointer position-card-inner relative"
               style="min-width: 80px; ${player ? `background: ${this.team.primaryColor};` : `border-color: ${this.team.primaryColor};`}"
-              data-tooltip="${pos.fullName}${status ? ' [' + status + ']' : ''}${note ? ' - ' + note : ''}"
+              data-tooltip="${escapeHtml(pos.fullName)}${status ? ' [' + escapeHtml(status) + ']' : ''}${note ? ' - ' + escapeHtml(note) : ''}"
               onclick="app.selectedSlot = { position: '${posKey}', depth: ${this.twoDeepView ? 0 : this.depthLevel} }; app.showPlayerModal = true; app.render()"
               draggable="${player ? 'true' : 'false'}"
               ondragstart="app.handleDragStart(${player ? JSON.stringify(player).replace(/"/g, '&quot;') : 'null'}, '${posKey}', ${this.twoDeepView ? 0 : this.depthLevel})"
@@ -2412,12 +2478,12 @@
               ondrop="app.handleDrop('${posKey}', ${this.twoDeepView ? 0 : this.depthLevel})"
             >
               ${status ? `
-                <div class="absolute -top-1 -right-1 px-1 py-0.5 text-[8px] font-bold text-white rounded ${this.getStatusColor(status)}" title="${status}">
-                  ${this.getStatusBadge(status)}
+                <div class="absolute -top-1 -right-1 px-1 py-0.5 text-[8px] font-bold text-white rounded ${this.getStatusColor(status)}" title="${escapeHtml(status)}">
+                  ${escapeHtml(this.getStatusBadge(status))}
                 </div>
               ` : ''}
               ${note ? `
-                <div class="absolute -top-1 -left-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center" title="${note}">
+                <div class="absolute -top-1 -left-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center" title="${escapeHtml(note)}">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="3"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                 </div>
               ` : ''}
@@ -2428,17 +2494,17 @@
               ${player ? `
                 <div class="px-2 py-2 text-center relative">
                   <div class="w-8 h-8 mx-auto mb-1 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">
-                    ${this.getPlayerInitials(player.name)}
+                    ${escapeHtml(this.getPlayerInitials(player.name))}
                   </div>
-                  <div class="font-display font-bold text-sm">#${player.number}</div>
-                  <div class="text-xs truncate max-w-[70px]" title="${player.name}${player.height ? ' • ' + player.height : ''}${player.weight ? ' • ' + player.weight : ''}">${this.getPlayerLastName(player.name)}</div>
-                  ${!this.twoDeepView && (player.height || player.weight) ? `<div class="text-[9px] opacity-70 mt-0.5">${player.height || ''}${player.height && player.weight ? ' • ' : ''}${player.weight || ''}</div>` : ''}
+                  <div class="font-display font-bold text-sm">#${escapeHtml(player.number)}</div>
+                  <div class="text-xs truncate max-w-[70px]" title="${escapeHtml(player.name)}${player.height ? ' &bull; ' + escapeHtml(player.height) : ''}${player.weight ? ' &bull; ' + escapeHtml(player.weight) : ''}">${escapeHtml(this.getPlayerLastName(player.name))}</div>
+                  ${!this.twoDeepView && (player.height || player.weight) ? `<div class="text-[9px] opacity-70 mt-0.5">${escapeHtml(player.height) || ''}${player.height && player.weight ? ' • ' : ''}${escapeHtml(player.weight) || ''}</div>` : ''}
                   ${this.twoDeepView && backup ? `
-                    <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-white/90 text-gray-800 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap" title="#${backup.number} ${backup.name}${this.getPlayerStatus(backup) ? ' [' + this.getPlayerStatus(backup) + ']' : ''}">
-                      #${backup.number} ${this.getPlayerLastName(backup.name)}
+                    <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-white/90 text-gray-800 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap" title="#${escapeHtml(backup.number)} ${escapeHtml(backup.name)}${this.getPlayerStatus(backup) ? ' [' + escapeHtml(this.getPlayerStatus(backup)) + ']' : ''}">
+                      #${escapeHtml(backup.number)} ${escapeHtml(this.getPlayerLastName(backup.name))}
                     </div>
                   ` : ''}
-                  ${!this.twoDeepView && player.url ? `<a href="${player.url}" target="_blank" onclick="event.stopPropagation()" class="inline-block mt-1 text-white/70 hover:text-white" title="View player page">
+                  ${!this.twoDeepView && player.url ? `<a href="${safeUrl(player.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" class="inline-block mt-1 text-white/70 hover:text-white" title="View player page">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                   </a>` : ''}
                 </div>
@@ -2482,20 +2548,20 @@
                 ${player ? `
                   <div class="flex items-center gap-2">
                     <div class="w-8 h-8 text-white rounded-full flex items-center justify-center text-xs font-bold relative" style="background: ${this.team.primaryColor};">
-                      ${this.getPlayerInitials(player.name)}
-                      ${status ? `<span class="absolute -top-1 -right-1 px-1 py-0.5 text-[7px] font-bold text-white rounded ${this.getStatusColor(status)}">${this.getStatusBadge(status)}</span>` : ''}
+                      ${escapeHtml(this.getPlayerInitials(player.name))}
+                      ${status ? `<span class="absolute -top-1 -right-1 px-1 py-0.5 text-[7px] font-bold text-white rounded ${this.getStatusColor(status)}">${escapeHtml(this.getStatusBadge(status))}</span>` : ''}
                     </div>
                     <div class="flex-1 min-w-0">
                       <div class="font-semibold text-gray-900 dark:text-white text-sm flex items-center gap-1 flex-wrap">
-                        <span>#${player.number} ${player.name}</span>
-                        ${note ? `<span class="text-yellow-500" title="${note}">
+                        <span>#${escapeHtml(player.number)} ${escapeHtml(player.name)}</span>
+                        ${note ? `<span class="text-yellow-500" title="${escapeHtml(note)}">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                         </span>` : ''}
-                        ${status ? `<span class="text-[10px] px-1.5 py-0.5 rounded ${this.getStatusColor(status)} text-white">${status}</span>` : ''}
+                        ${status ? `<span class="text-[10px] px-1.5 py-0.5 rounded ${this.getStatusColor(status)} text-white">${escapeHtml(status)}</span>` : ''}
                       </div>
-                      <div class="text-xs text-gray-500 dark:text-gray-400">${player.year}${player.height ? ` • ${player.height}` : ''}${player.weight ? ` • ${player.weight}` : ''}</div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">${escapeHtml(player.year)}${player.height ? ` • ${escapeHtml(player.height)}` : ''}${player.weight ? ` • ${escapeHtml(player.weight)}` : ''}</div>
                     </div>
-                    ${player.url ? `<a href="${player.url}" target="_blank" onclick="event.stopPropagation()" class="p-1 text-gray-400 hover:text-gray-600 flex-shrink-0">
+                    ${player.url ? `<a href="${safeUrl(player.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" class="p-1 text-gray-400 hover:text-gray-600 flex-shrink-0">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                     </a>` : ''}
                   </div>
@@ -2523,18 +2589,18 @@
                   ${backup ? `
                     <div class="flex items-center gap-2">
                       <div class="w-6 h-6 text-white rounded-full flex items-center justify-center text-[10px] font-bold relative" style="background: ${this.team.primaryColor}80;">
-                        ${this.getPlayerInitials(backup.name)}
+                        ${escapeHtml(this.getPlayerInitials(backup.name))}
                       </div>
                       <div class="flex-1 min-w-0">
                         <div class="text-gray-700 dark:text-gray-300 text-xs flex items-center gap-1 flex-wrap">
-                          <span>#${backup.number} ${backup.name}</span>
-                          ${backupNote ? `<span class="text-yellow-500" title="${backupNote}">
+                          <span>#${escapeHtml(backup.number)} ${escapeHtml(backup.name)}</span>
+                          ${backupNote ? `<span class="text-yellow-500" title="${escapeHtml(backupNote)}">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                           </span>` : ''}
-                          ${backupStatus ? `<span class="text-[9px] px-1 py-0.5 rounded ${this.getStatusColor(backupStatus)} text-white">${backupStatus}</span>` : ''}
+                          ${backupStatus ? `<span class="text-[9px] px-1 py-0.5 rounded ${this.getStatusColor(backupStatus)} text-white">${escapeHtml(backupStatus)}</span>` : ''}
                         </div>
                       </div>
-                      ${backup.url ? `<a href="${backup.url}" target="_blank" onclick="event.stopPropagation()" class="p-1 text-gray-400 hover:text-gray-600 flex-shrink-0">
+                      ${backup.url ? `<a href="${safeUrl(backup.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" class="p-1 text-gray-400 hover:text-gray-600 flex-shrink-0">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                       </a>` : ''}
                     </div>
@@ -2553,7 +2619,7 @@
 
       renderKeyboardHints() {
         return `
-          <div class="mt-4 text-center text-white/60 text-sm no-print">
+          <div class="mt-4 text-center text-gray-500 dark:text-gray-400 text-sm no-print">
             <span class="inline-flex items-center gap-4 flex-wrap justify-center">
               <span><kbd class="px-2 py-1 bg-white/10 rounded text-xs">←→</kbd> Tabs</span>
               <span><kbd class="px-2 py-1 bg-white/10 rounded text-xs">↑↓</kbd> Depth</span>
@@ -2593,7 +2659,7 @@
               <div class="p-4 border-b dark:border-gray-700">
                 <div class="relative">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                  <input type="text" id="playerSearch" placeholder="Search by name or number…" class="w-full pl-10 pr-4 py-2 border-2 border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" value="${this.searchQuery}"/>
+                  <input type="text" id="playerSearch" placeholder="Search by name or number…" class="w-full pl-10 pr-4 py-2 border-2 border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" value="${escapeHtml(this.searchQuery)}"/>
                 </div>
               </div>
 
@@ -2617,16 +2683,16 @@
                     <div class="text-xs font-semibold mb-2 uppercase tracking-wide" style="color: ${this.team.primaryColor};">Current Player</div>
                     <div class="flex items-center gap-3 mb-3">
                       <div class="w-12 h-12 text-white rounded-full flex items-center justify-center font-bold text-lg relative" style="background: ${this.team.primaryColor};">
-                        ${this.getPlayerInitials(currentPlayer.name)}
-                        ${this.getPlayerStatus(currentPlayer) ? `<span class="absolute -top-1 -right-1 px-1 text-[8px] font-bold text-white rounded ${this.getStatusColor(this.getPlayerStatus(currentPlayer))}">${this.getStatusBadge(this.getPlayerStatus(currentPlayer))}</span>` : ''}
+                        ${escapeHtml(this.getPlayerInitials(currentPlayer.name))}
+                        ${this.getPlayerStatus(currentPlayer) ? `<span class="absolute -top-1 -right-1 px-1 text-[8px] font-bold text-white rounded ${this.getStatusColor(this.getPlayerStatus(currentPlayer))}">${escapeHtml(this.getStatusBadge(this.getPlayerStatus(currentPlayer)))}</span>` : ''}
                       </div>
                       <div class="flex-1">
                         <div class="font-bold text-gray-900 dark:text-white">
-                          #${currentPlayer.number}
-                          ${currentPlayer.url ? `<a href="${currentPlayer.url}" target="_blank" class="hover:underline">${currentPlayer.name}</a>` : currentPlayer.name}
+                          #${escapeHtml(currentPlayer.number)}
+                          ${currentPlayer.url ? `<a href="${safeUrl(currentPlayer.url)}" target="_blank" rel="noopener noreferrer" class="hover:underline">${escapeHtml(currentPlayer.name)}</a>` : escapeHtml(currentPlayer.name)}
                         </div>
-                        <div class="text-sm text-gray-600 dark:text-gray-400">${currentPlayer.year}${currentPlayer.height ? ` • ${currentPlayer.height}` : ''}${currentPlayer.weight ? ` • ${currentPlayer.weight}` : ''}</div>
-                        ${currentPlayer.hometown ? `<div class="text-xs text-gray-500">${currentPlayer.hometown}</div>` : ''}
+                        <div class="text-sm text-gray-600 dark:text-gray-400">${escapeHtml(currentPlayer.year)}${currentPlayer.height ? ` • ${escapeHtml(currentPlayer.height)}` : ''}${currentPlayer.weight ? ` • ${escapeHtml(currentPlayer.weight)}` : ''}</div>
+                        ${currentPlayer.hometown ? `<div class="text-xs text-gray-500">${escapeHtml(currentPlayer.hometown)}</div>` : ''}
                       </div>
                       <button onclick="app.removePlayer('${position}', ${depth})" class="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Remove" aria-label="Remove player">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
@@ -2657,7 +2723,7 @@
                       <input
                         type="text"
                         placeholder="e.g., Breakout candidate, Coming off ACL..."
-                        value="${this.getPlayerNote(currentPlayer).replace(/"/g, '&quot;')}"
+                        value="${escapeHtml(this.getPlayerNote(currentPlayer))}"
                         onchange="app.setPlayerNote(${JSON.stringify(currentPlayer).replace(/"/g, '&quot;')}, this.value)"
                         class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       />
@@ -2674,15 +2740,15 @@
                       >
                         <div class="flex items-center gap-3">
                           <div class="w-10 h-10 ${player.isAssigned ? 'bg-gray-300 dark:bg-gray-700' : 'bg-gray-200 dark:bg-gray-600'} rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 text-sm font-semibold">
-                            ${this.getPlayerInitials(player.name)}
+                            ${escapeHtml(this.getPlayerInitials(player.name))}
                           </div>
                           <div class="flex-1">
-                            <div class="font-semibold ${player.isAssigned ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white'}">#${player.number} ${player.name}</div>
-                            <div class="text-sm text-gray-500 dark:text-gray-400">${player.position} • ${player.year}${player.height ? ` • ${player.height}` : ''}${player.weight ? ` • ${player.weight}` : ''}</div>
-                            ${player.isAssigned ? `<div class="text-xs text-amber-600 dark:text-amber-400 mt-1">Currently: ${player.assignments.map(a => this.getSlotDisplayName(a.position) + ' #' + (a.depth + 1)).join(', ')}</div>` : ''}
-                            ${!player.isAssigned && player.hometown ? `<div class="text-xs text-gray-400 dark:text-gray-500">${player.hometown}${player.previousSchool ? ` (${player.previousSchool})` : ''}</div>` : ''}
+                            <div class="font-semibold ${player.isAssigned ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white'}">#${escapeHtml(player.number)} ${escapeHtml(player.name)}</div>
+                            <div class="text-sm text-gray-500 dark:text-gray-400">${escapeHtml(player.position)} • ${escapeHtml(player.year)}${player.height ? ` • ${escapeHtml(player.height)}` : ''}${player.weight ? ` • ${escapeHtml(player.weight)}` : ''}</div>
+                            ${player.isAssigned ? `<div class="text-xs text-amber-600 dark:text-amber-400 mt-1">Currently: ${escapeHtml(player.assignments.map(a => this.getSlotDisplayName(a.position) + ' #' + (a.depth + 1)).join(', '))}</div>` : ''}
+                            ${!player.isAssigned && player.hometown ? `<div class="text-xs text-gray-400 dark:text-gray-500">${escapeHtml(player.hometown)}${player.previousSchool ? ` (${escapeHtml(player.previousSchool)})` : ''}</div>` : ''}
                           </div>
-                          ${player.url ? `<a href="${player.url}" target="_blank" onclick="event.stopPropagation()" class="p-1 text-gray-400 hover:text-gray-600" title="View profile">
+                          ${player.url ? `<a href="${safeUrl(player.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" class="p-1 text-gray-400 hover:text-gray-600" title="View profile">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                           </a>` : ''}
                         </div>
@@ -2701,7 +2767,7 @@
           return `
             <div class="text-center py-8">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-gray-300 dark:text-gray-600 mb-3"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <p class="text-gray-500 dark:text-gray-400 font-semibold">No players match "${this.searchQuery}"</p>
+              <p class="text-gray-500 dark:text-gray-400 font-semibold">No players match "${escapeHtml(this.searchQuery)}"</p>
               <p class="text-gray-400 dark:text-gray-500 text-sm mt-1">Try a different search term</p>
             </div>
           `;
@@ -2838,11 +2904,11 @@
                   <p class="text-xs text-gray-500 dark:text-gray-400">Format: #Number Name Position Year (or commas)</p>
                 </div>
 
-                <textarea id="importTextarea" placeholder="Paste roster data here…" class="w-full h-64 p-3 border-2 border-gray-200 dark:border-gray-600 rounded-lg font-mono text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">${this.importText}</textarea>
+                <textarea id="importTextarea" placeholder="Paste roster data here…" class="w-full h-64 p-3 border-2 border-gray-200 dark:border-gray-600 rounded-lg font-mono text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">${escapeHtml(this.importText)}</textarea>
 
                 ${this.importMessage ? `
                   <div class="mt-3 p-3 rounded-lg ${this.importMessage.includes('Success') ? 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300'}">
-                    ${this.importMessage}
+                    ${escapeHtml(this.importMessage)}
                   </div>
                 ` : ''}
               </div>
@@ -2979,8 +3045,8 @@
                                   </span>
                                   ${player ? `
                                     <div class="flex-1">
-                                      <span class="font-semibold text-gray-900 dark:text-white text-sm">#${player.number} ${player.name}</span>
-                                      <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">${player.year || ''}</span>
+                                      <span class="font-semibold text-gray-900 dark:text-white text-sm">#${escapeHtml(player.number)} ${escapeHtml(player.name)}</span>
+                                      <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">${escapeHtml(player.year || '')}</span>
                                     </div>
                                     <button onclick="app.removeFromReorder('${slot.key}', ${d})" class="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded" title="Remove" aria-label="Remove player">
                                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -3013,12 +3079,12 @@
                           <div class="border dark:border-gray-700 rounded-lg p-3 ${player.isAssigned ? 'bg-gray-100 dark:bg-gray-800 opacity-60' : 'bg-gray-50 dark:bg-gray-700/50'} hover:opacity-100 transition-opacity">
                             <div class="flex items-center gap-3 mb-2">
                               <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold ${player.isAssigned ? 'opacity-70' : ''}" style="background: ${this.team.primaryColor};">
-                                ${this.getPlayerInitials(player.name)}
+                                ${escapeHtml(this.getPlayerInitials(player.name))}
                               </div>
                               <div class="flex-1">
-                                <div class="font-semibold ${player.isAssigned ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white'}">#${player.number} ${player.name}</div>
-                                <div class="text-xs text-gray-500 dark:text-gray-400">${player.position} • ${player.year}${player.height ? ` • ${player.height}` : ''}${player.weight ? ` • ${player.weight}` : ''}</div>
-                                ${player.isAssigned ? `<div class="text-xs text-amber-600 dark:text-amber-400 mt-1">Currently: ${player.assignments.map(a => this.getSlotDisplayName(a.position) + ' #' + (a.depth + 1)).join(', ')}</div>` : ''}
+                                <div class="font-semibold ${player.isAssigned ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white'}">#${escapeHtml(player.number)} ${escapeHtml(player.name)}</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">${escapeHtml(player.position)} • ${escapeHtml(player.year)}${player.height ? ` • ${escapeHtml(player.height)}` : ''}${player.weight ? ` • ${escapeHtml(player.weight)}` : ''}</div>
+                                ${player.isAssigned ? `<div class="text-xs text-amber-600 dark:text-amber-400 mt-1">Currently: ${escapeHtml(player.assignments.map(a => this.getSlotDisplayName(a.position) + ' #' + (a.depth + 1)).join(', '))}</div>` : ''}
                               </div>
                             </div>
                             <div class="flex flex-wrap gap-1">
@@ -3032,7 +3098,7 @@
                                       onclick="app.assignFromReorder('${slot.key}', ${d}, ${JSON.stringify({name: player.name, number: player.number, position: player.position, year: player.year, height: player.height, weight: player.weight, hometown: player.hometown, highSchool: player.highSchool, previousSchool: player.previousSchool, url: player.url}).replace(/"/g, '&quot;')})"
                                       class="px-2 py-1 text-xs rounded border hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${occupied ? 'border-dashed opacity-70' : ''}"
                                       style="border-color: ${this.team.primaryColor}; color: ${this.team.primaryColor};"
-                                      title="${occupied ? 'Replace ' + occupied.name : ''}"
+                                      title="${occupied ? 'Replace ' + escapeHtml(occupied.name) : ''}"
                                     >
                                       ${slot.name} #${d + 1}${occupied ? '*' : ''}
                                     </button>

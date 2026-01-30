@@ -1,9 +1,92 @@
 import * as cheerio from 'cheerio';
 
+// Simple in-memory rate limiter (resets per cold start)
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_MAX = 10; // max 10 requests per minute per IP
+
+function isRateLimited(ip) {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    rateLimitMap.set(ip, { windowStart: now, count: 1 });
+    return false;
+  }
+  entry.count++;
+  return entry.count > RATE_LIMIT_MAX;
+}
+
+// SSRF protection: validate URL is a safe external target
+function validateUrl(urlString) {
+  let parsed;
+  try {
+    parsed = new URL(urlString);
+  } catch {
+    return { valid: false, reason: 'Invalid URL format' };
+  }
+
+  // Only allow HTTP/HTTPS
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    return { valid: false, reason: 'Only http and https URLs are allowed' };
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+
+  // Block localhost and loopback
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '0.0.0.0') {
+    return { valid: false, reason: 'Localhost URLs are not allowed' };
+  }
+
+  // Block private/reserved IP ranges
+  const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4Match) {
+    const [, a, b] = ipv4Match.map(Number);
+    if (a === 10) return { valid: false, reason: 'Private IP addresses are not allowed' };
+    if (a === 172 && b >= 16 && b <= 31) return { valid: false, reason: 'Private IP addresses are not allowed' };
+    if (a === 192 && b === 168) return { valid: false, reason: 'Private IP addresses are not allowed' };
+    if (a === 169 && b === 254) return { valid: false, reason: 'Link-local addresses are not allowed' };
+    if (a === 0) return { valid: false, reason: 'Reserved IP addresses are not allowed' };
+  }
+
+  // Block common internal hostnames
+  const blockedPatterns = ['internal', 'intranet', 'corp', 'metadata', '.local'];
+  if (blockedPatterns.some(p => hostname.includes(p))) {
+    return { valid: false, reason: 'Internal hostnames are not allowed' };
+  }
+
+  return { valid: true };
+}
+
+// Normalize theme-color to hex format
+function normalizeColor(color) {
+  if (!color) return null;
+  const trimmed = color.trim();
+
+  // Already hex
+  if (/^#[0-9a-fA-F]{3,6}$/.test(trimmed)) return trimmed;
+
+  // rgb(r, g, b) format
+  const rgbMatch = trimmed.match(/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i);
+  if (rgbMatch) {
+    const [, r, g, b] = rgbMatch;
+    return `#${Number(r).toString(16).padStart(2, '0')}${Number(g).toString(16).padStart(2, '0')}${Number(b).toString(16).padStart(2, '0')}`;
+  }
+
+  return null; // Unrecognized format, ignore
+}
+
 export default async function handler(req, res) {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  // Restrict CORS to same origin (adjust if you have a custom domain)
+  const allowedOrigins = [
+    'https://depth-chart-builder.vercel.app',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000'
+  ];
+  const origin = req.headers.origin || '';
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
@@ -14,10 +97,22 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Rate limiting
+  const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+  if (isRateLimited(clientIp)) {
+    return res.status(429).json({ error: 'Too many requests. Please wait a minute before trying again.' });
+  }
+
   const { url } = req.body;
 
   if (!url) {
     return res.status(400).json({ error: 'URL is required' });
+  }
+
+  // Validate URL to prevent SSRF
+  const urlCheck = validateUrl(url);
+  if (!urlCheck.valid) {
+    return res.status(400).json({ error: urlCheck.reason });
   }
 
   try {
@@ -29,7 +124,9 @@ export default async function handler(req, res) {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
-      }
+      },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(15000), // 15s timeout
     });
 
     if (!response.ok) {
@@ -67,8 +164,9 @@ export default async function handler(req, res) {
     let secondaryColor = '#ffffff';
 
     const themeColor = $('meta[name="theme-color"]').attr('content');
-    if (themeColor) {
-      primaryColor = themeColor;
+    const normalizedColor = normalizeColor(themeColor);
+    if (normalizedColor) {
+      primaryColor = normalizedColor;
     }
 
     // Extract roster data
