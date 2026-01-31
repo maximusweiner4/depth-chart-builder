@@ -990,30 +990,52 @@
       }
 
       // Shareable URL methods
+      // Compact share format: single-char keys, player arrays [number, name, year],
+      // strip nulls/empties. Cuts payload ~60% before compression.
       buildSharePayload() {
-        return {
-          team: {
-            name: this.team.name,
-            primaryColor: this.team.primaryColor,
-            secondaryColor: this.team.secondaryColor
-          },
-          depthChart: this.depthChart,
-          playerStatuses: this.playerStatuses,
-          offenseFormation: this.offenseFormation,
-          defenseFormation: this.defenseFormation,
-          twoDeepView: this.twoDeepView
+        // Compact depth chart: only include non-null players, as [number, name, year] arrays
+        const dc = {};
+        for (const [posKey, players] of Object.entries(this.depthChart)) {
+          if (!players) continue;
+          const compact = [];
+          let hasPlayer = false;
+          for (let i = 0; i < players.length; i++) {
+            const p = players[i];
+            if (p) {
+              compact[i] = [p.number, p.name, p.year || ''];
+              hasPlayer = true;
+            }
+          }
+          if (hasPlayer) dc[posKey] = compact;
+        }
+
+        // Only include non-empty statuses
+        const st = {};
+        for (const [k, v] of Object.entries(this.playerStatuses)) {
+          if (v) st[k] = v;
+        }
+
+        const payload = {
+          t: [this.team.name, this.team.primaryColor, this.team.secondaryColor || '#ffffff'],
+          d: dc,
+          o: this.offenseFormation,
+          f: this.defenseFormation
         };
+        // Only include optional fields if non-default
+        if (Object.keys(st).length > 0) payload.s = st;
+        if (this.twoDeepView) payload.v = 1;
+
+        return payload;
       }
 
       shareViaUrl() {
         try {
           const payload = JSON.stringify(this.buildSharePayload());
           const compressed = LZString.compressToEncodedURIComponent(payload);
-          const shareUrl = window.location.origin + window.location.pathname + '#share=' + compressed;
+          const shareUrl = window.location.origin + window.location.pathname + '#s=' + compressed;
           navigator.clipboard.writeText(shareUrl).then(() => {
             this.showToast('Share link copied to clipboard!');
           }).catch(() => {
-            // Fallback for clipboard API failure
             const ta = document.createElement('textarea');
             ta.value = shareUrl;
             ta.style.position = 'fixed';
@@ -1032,26 +1054,56 @@
 
       loadFromShareUrl() {
         const hash = window.location.hash;
-        if (!hash.startsWith('#share=')) return false;
+        // Support both #s= (compact) and legacy #share= format
+        let compressed;
+        if (hash.startsWith('#s=')) {
+          compressed = hash.substring(3);
+        } else if (hash.startsWith('#share=')) {
+          compressed = hash.substring(7);
+        } else {
+          return false;
+        }
 
         try {
-          const compressed = hash.substring(7); // Remove '#share='
           const json = LZString.decompressFromEncodedURIComponent(compressed);
           if (!json) return false;
           const data = JSON.parse(json);
 
-          // Load shared data into read-only state
           this.readOnlyMode = true;
-          this.team = { ...this.team, ...data.team };
-          this.depthChart = data.depthChart || {};
-          this.playerStatuses = data.playerStatuses || {};
-          this.offenseFormation = data.offenseFormation || 'pro';
-          this.defenseFormation = data.defenseFormation || 'nickel';
-          this.twoDeepView = data.twoDeepView || false;
 
-          // Load dark mode preference from localStorage still
+          // Detect compact format (has 't' array) vs legacy format (has 'team' object)
+          if (data.t && Array.isArray(data.t)) {
+            // Compact format
+            this.team = { ...this.team, name: data.t[0], primaryColor: data.t[1], secondaryColor: data.t[2] || '#ffffff' };
+
+            // Expand compact player arrays back to full objects
+            const dc = {};
+            for (const [posKey, slots] of Object.entries(data.d || {})) {
+              dc[posKey] = [];
+              for (let i = 0; i < slots.length; i++) {
+                if (slots[i]) {
+                  dc[posKey][i] = { number: slots[i][0], name: slots[i][1], year: slots[i][2] || '', position: '', height: '', weight: '', hometown: '', highSchool: '', previousSchool: '', url: '' };
+                } else {
+                  dc[posKey][i] = null;
+                }
+              }
+            }
+            this.depthChart = dc;
+            this.playerStatuses = data.s || {};
+            this.offenseFormation = data.o || 'pro';
+            this.defenseFormation = data.f || 'nickel';
+            this.twoDeepView = !!data.v;
+          } else {
+            // Legacy format
+            this.team = { ...this.team, ...data.team };
+            this.depthChart = data.depthChart || {};
+            this.playerStatuses = data.playerStatuses || {};
+            this.offenseFormation = data.offenseFormation || 'pro';
+            this.defenseFormation = data.defenseFormation || 'nickel';
+            this.twoDeepView = data.twoDeepView || false;
+          }
+
           this.loadDarkMode();
-
           return true;
         } catch (err) {
           console.error('Failed to load shared depth chart:', err);
