@@ -1380,6 +1380,9 @@
       confirmReset() {
         this.saveStateForUndo();
         this.initializeEmptyChart();
+        this.playerStatuses = {};
+        this.playerNotes = {};
+        this.positionBattles = {};
         this.autoSave();
         this.showResetModal = false;
         this.render();
@@ -1402,12 +1405,24 @@
         localStorage.removeItem('generic-player-notes');
         localStorage.removeItem('generic-position-battles');
         localStorage.removeItem('generic-two-deep-view');
+        localStorage.removeItem('depth-chart-offense-formation');
+        localStorage.removeItem('depth-chart-defense-formation');
 
-        // Reset app state directly
+        // Reset all app state
         this.roster = [];
         this.team = { name: 'Your Team', primaryColor: '#1a1a2e', secondaryColor: '#ffffff', rosterUrl: '' };
         this.depthChart = {};
         this.initializeEmptyChart();
+        this.playerStatuses = {};
+        this.playerNotes = {};
+        this.positionBattles = {};
+        this.twoDeepView = false;
+        this.offenseFormation = 'pro';
+        this.defenseFormation = 'nickel';
+        this.undoStack = [];
+        this.redoStack = [];
+        this.activeTab = 'offense';
+        this.depthLevel = 0;
         this.showAppResetModal = false;
         this.showSetupModal = true;
         this.showOnboarding = false;
