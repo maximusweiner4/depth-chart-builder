@@ -1,3 +1,4 @@
 {
-  "outputDirectory": "."
+  "outputDirectory": ".",
+  "buildCommand": "npm run build:css"
 }

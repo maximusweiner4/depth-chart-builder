@@ -233,6 +233,9 @@
   <div id="app"></div>
 
   <script>
+    // LZString compression library (v1.5.0) - used for shareable URL compression
+    var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=",n="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$",e={};function t(r,o){if(!e[r]){e[r]={};for(var n=0;n<r.length;n++)e[r][r.charAt(n)]=n}return e[r][o]}var i={compressToBase64:function(r){if(null==r)return"";var n=i._compress(r,6,function(r){return o.charAt(r)});switch(n.length%4){default:case 0:return n;case 1:return n+"===";case 2:return n+"==";case 3:return n+"="}},decompressFromBase64:function(r){return null==r?"":""==r?null:i._decompress(r.length,32,function(n){return t(o,r.charAt(n))})},compressToUTF16:function(o){return null==o?"":i._compress(o,15,function(o){return r(o+32)})+" "},decompressFromUTF16:function(r){return null==r?"":""==r?null:i._decompress(r.length,16384,function(o){return r.charCodeAt(o)-32})},compressToUint8Array:function(r){for(var o=i.compress(r),n=new Uint8Array(2*o.length),e=0,t=o.length;e<t;e++){var s=o.charCodeAt(e);n[2*e]=s>>>8,n[2*e+1]=s%256}return n},decompressFromUint8Array:function(o){if(null==o)return i.decompress(o);for(var n=new Array(o.length/2),e=0,t=n.length;e<t;e++)n[e]=256*o[2*e]+o[2*e+1];var s=[];return n.forEach(function(o){s.push(r(o))}),i.decompress(s.join(""))},compressToEncodedURIComponent:function(r){return null==r?"":i._compress(r,6,function(r){return n.charAt(r)})},decompressFromEncodedURIComponent:function(r){return null==r?"":""==r?null:(r=r.replace(/ /g,"+"),i._decompress(r.length,32,function(o){return t(n,r.charAt(o))}))},compress:function(o){return i._compress(o,16,function(o){return r(o)})},_compress:function(r,o,n){if(null==r)return"";var e,t,i,s={},u={},a="",p="",c="",l=2,f=3,h=2,d=[],m=0,v=0;for(i=0;i<r.length;i+=1)if(a=r.charAt(i),Object.prototype.hasOwnProperty.call(s,a)||(s[a]=f++,u[a]=!0),p=c+a,Object.prototype.hasOwnProperty.call(s,p))c=p;else{if(Object.prototype.hasOwnProperty.call(u,c)){if(c.charCodeAt(0)<256){for(e=0;e<h;e++)m<<=1,v==o-1?(v=0,d.push(n(m)),m=0):v++;for(t=c.charCodeAt(0),e=0;e<8;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}else{for(t=1,e=0;e<h;e++)m=m<<1|t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t=0;for(t=c.charCodeAt(0),e=0;e<16;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}0==--l&&(l=Math.pow(2,h),h++),delete u[c]}else for(t=s[c],e=0;e<h;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1;0==--l&&(l=Math.pow(2,h),h++),s[p]=f++,c=String(a)}if(""!==c){if(Object.prototype.hasOwnProperty.call(u,c)){if(c.charCodeAt(0)<256){for(e=0;e<h;e++)m<<=1,v==o-1?(v=0,d.push(n(m)),m=0):v++;for(t=c.charCodeAt(0),e=0;e<8;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}else{for(t=1,e=0;e<h;e++)m=m<<1|t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t=0;for(t=c.charCodeAt(0),e=0;e<16;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}0==--l&&(l=Math.pow(2,h),h++),delete u[c]}else for(t=s[c],e=0;e<h;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1;0==--l&&(l=Math.pow(2,h),h++)}for(t=2,e=0;e<h;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1;for(;;){if(m<<=1,v==o-1){d.push(n(m));break}v++}return d.join("")},decompress:function(r){return null==r?"":""==r?null:i._decompress(r.length,32768,function(o){return r.charCodeAt(o)})},_decompress:function(o,n,e){var t,i,s,u,a,p,c,l=[],f=4,h=4,d=3,m="",v=[],g={val:e(0),position:n,index:1};for(t=0;t<3;t+=1)l[t]=t;for(s=0,a=Math.pow(2,2),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;switch(s){case 0:for(s=0,a=Math.pow(2,8),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;c=r(s);break;case 1:for(s=0,a=Math.pow(2,16),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;c=r(s);break;case 2:return""}for(l[3]=c,i=c,v.push(c);;){if(g.index>o)return"";for(s=0,a=Math.pow(2,d),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;switch(c=s){case 0:for(s=0,a=Math.pow(2,8),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;l[h++]=r(s),c=h-1,f--;break;case 1:for(s=0,a=Math.pow(2,16),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;l[h++]=r(s),c=h-1,f--;break;case 2:return v.join("")}if(0==f&&(f=Math.pow(2,d),d++),l[c])m=l[c];else{if(c!==h)return null;m=i+i.charAt(0)}v.push(m),l[h++]=i+m.charAt(0),i=m,0==--f&&(f=Math.pow(2,d),d++)}}};return i}();"function"==typeof define&&define.amd?define(function(){return LZString}):"undefined"!=typeof module&&null!=module?module.exports=LZString:"undefined"!=typeof angular&&null!=angular&&angular.module("LZString",[]).factory("LZString",function(){return LZString});
+
     // HTML escaping utility to prevent XSS
     function escapeHtml(str) {
       if (str == null) return '';
@@ -649,6 +652,11 @@
         this.maxUndoSteps = 20;
         this.lastSaved = null;
 
+        // Shareable URL / read-only viewer
+        this.readOnlyMode = false;
+        this.toastMessage = '';
+        this.toastTimeout = null;
+
         this.init();
       }
 
@@ -656,6 +664,14 @@
         this.render();
 
         setTimeout(() => {
+          // Check for shared depth chart in URL hash
+          if (this.loadFromShareUrl()) {
+            this.loading = false;
+            this.applyTeamColors();
+            this.render();
+            return;
+          }
+
           this.loadDarkMode();
           this.loadFormations();
           this.loadTeam();
@@ -911,6 +927,165 @@
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+      }
+
+      exportFullBackup() {
+        const backupKeys = [
+          'generic-depth-chart', 'generic-player-statuses', 'generic-player-notes',
+          'generic-position-battles', 'generic-two-deep-view', 'generic-team-config',
+          'generic-roster', 'generic-dark-mode', 'depth-chart-offense-formation',
+          'depth-chart-defense-formation'
+        ];
+        const backup = { version: 1, exportDate: new Date().toISOString() };
+        backupKeys.forEach(key => {
+          const val = localStorage.getItem(key);
+          if (val !== null) backup[key] = val;
+        });
+        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `depth-chart-backup-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      importFullBackup() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            try {
+              const data = JSON.parse(ev.target.result);
+              if (!data.version || !data['generic-depth-chart']) {
+                alert('Invalid backup file. The file must be a depth chart backup exported from this app.');
+                return;
+              }
+              if (!confirm('This will replace all current data. Continue?')) return;
+              const backupKeys = [
+                'generic-depth-chart', 'generic-player-statuses', 'generic-player-notes',
+                'generic-position-battles', 'generic-two-deep-view', 'generic-team-config',
+                'generic-roster', 'generic-dark-mode', 'depth-chart-offense-formation',
+                'depth-chart-defense-formation'
+              ];
+              backupKeys.forEach(key => {
+                if (data[key] !== undefined) {
+                  localStorage.setItem(key, data[key]);
+                }
+              });
+              window.location.reload();
+            } catch (err) {
+              alert('Failed to read backup file. Make sure it is a valid JSON file.');
+            }
+          };
+          reader.readAsText(file);
+        };
+        input.click();
+      }
+
+      // Shareable URL methods
+      buildSharePayload() {
+        return {
+          team: {
+            name: this.team.name,
+            primaryColor: this.team.primaryColor,
+            secondaryColor: this.team.secondaryColor
+          },
+          depthChart: this.depthChart,
+          playerStatuses: this.playerStatuses,
+          offenseFormation: this.offenseFormation,
+          defenseFormation: this.defenseFormation,
+          twoDeepView: this.twoDeepView
+        };
+      }
+
+      shareViaUrl() {
+        try {
+          const payload = JSON.stringify(this.buildSharePayload());
+          const compressed = LZString.compressToEncodedURIComponent(payload);
+          const shareUrl = window.location.origin + window.location.pathname + '#share=' + compressed;
+          navigator.clipboard.writeText(shareUrl).then(() => {
+            this.showToast('Share link copied to clipboard!');
+          }).catch(() => {
+            // Fallback for clipboard API failure
+            const ta = document.createElement('textarea');
+            ta.value = shareUrl;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            this.showToast('Share link copied to clipboard!');
+          });
+        } catch (err) {
+          console.error('Failed to create share URL:', err);
+          this.showToast('Failed to create share link. The depth chart may be too large.');
+        }
+      }
+
+      loadFromShareUrl() {
+        const hash = window.location.hash;
+        if (!hash.startsWith('#share=')) return false;
+
+        try {
+          const compressed = hash.substring(7); // Remove '#share='
+          const json = LZString.decompressFromEncodedURIComponent(compressed);
+          if (!json) return false;
+          const data = JSON.parse(json);
+
+          // Load shared data into read-only state
+          this.readOnlyMode = true;
+          this.team = { ...this.team, ...data.team };
+          this.depthChart = data.depthChart || {};
+          this.playerStatuses = data.playerStatuses || {};
+          this.offenseFormation = data.offenseFormation || 'pro';
+          this.defenseFormation = data.defenseFormation || 'nickel';
+          this.twoDeepView = data.twoDeepView || false;
+
+          // Load dark mode preference from localStorage still
+          this.loadDarkMode();
+
+          return true;
+        } catch (err) {
+          console.error('Failed to load shared depth chart:', err);
+          return false;
+        }
+      }
+
+      loadSharedIntoEditor() {
+        // Save current shared state to localStorage
+        localStorage.setItem('generic-team-config', JSON.stringify(this.team));
+        localStorage.setItem('generic-depth-chart', JSON.stringify(this.depthChart));
+        localStorage.setItem('generic-player-statuses', JSON.stringify(this.playerStatuses));
+        localStorage.setItem('depth-chart-offense-formation', this.offenseFormation);
+        localStorage.setItem('depth-chart-defense-formation', this.defenseFormation);
+        localStorage.setItem('generic-two-deep-view', JSON.stringify(this.twoDeepView));
+
+        // Clear hash and reload
+        window.location.hash = '';
+        window.location.reload();
+      }
+
+      dismissShareBanner() {
+        this._shareBannerDismissed = true;
+        this.render();
+      }
+
+      showToast(message) {
+        this.toastMessage = message;
+        if (this.toastTimeout) clearTimeout(this.toastTimeout);
+        this.render();
+        this.toastTimeout = setTimeout(() => {
+          this.toastMessage = '';
+          this.render();
+        }, 3000);
       }
 
       // Player status helper methods
@@ -1761,26 +1936,39 @@
         }
 
         app.innerHTML = `
+          ${this.readOnlyMode && !this._shareBannerDismissed ? `
+            <div class="bg-blue-600 text-white py-3 px-4 text-center text-sm font-semibold flex items-center justify-center gap-3 flex-wrap">
+              <span>You're viewing a shared depth chart.</span>
+              <button onclick="app.loadSharedIntoEditor()" class="bg-white text-blue-600 px-4 py-1.5 rounded-lg font-bold hover:bg-blue-50 transition-colors text-sm">Load into Editor</button>
+              <button onclick="app.dismissShareBanner()" class="text-white/80 hover:text-white underline text-sm">Dismiss</button>
+            </div>
+          ` : ''}
           <div class="max-w-7xl mx-auto p-4">
             ${this.renderHeader()}
-            ${this.renderButtons()}
+            ${!this.readOnlyMode ? this.renderButtons() : ''}
             ${this.renderTabs()}
-            ${this.renderMobileControls()}
+            ${!this.readOnlyMode ? this.renderMobileControls() : ''}
             <div class="desktop-only">
               ${this.activeTab !== 'special' ? this.renderDepthSelector() : ''}
-              ${this.activeTab !== 'special' ? this.renderFormationSelector() : ''}
+              ${!this.readOnlyMode && this.activeTab !== 'special' ? this.renderFormationSelector() : ''}
             </div>
             ${this.renderField()}
-            ${this.renderKeyboardHints()}
+            ${!this.readOnlyMode ? this.renderKeyboardHints() : ''}
           </div>
-          ${this.showOnboarding ? this.renderOnboarding() : ''}
-          ${this.showSetupModal ? this.renderSetupModal() : ''}
-          ${this.showTeamSettingsModal ? this.renderTeamSettingsModal() : ''}
-          ${this.showPlayerModal ? this.renderPlayerModal() : ''}
-          ${this.showImportModal ? this.renderImportModal() : ''}
-          ${this.showResetModal ? this.renderResetModal() : ''}
-          ${this.showAppResetModal ? this.renderAppResetModal() : ''}
-          ${this.showDepthReorderModal ? this.renderDepthReorderModal() : ''}
+          ${!this.readOnlyMode && this.showOnboarding ? this.renderOnboarding() : ''}
+          ${!this.readOnlyMode && this.showSetupModal ? this.renderSetupModal() : ''}
+          ${!this.readOnlyMode && this.showTeamSettingsModal ? this.renderTeamSettingsModal() : ''}
+          ${!this.readOnlyMode && this.showPlayerModal ? this.renderPlayerModal() : ''}
+          ${!this.readOnlyMode && this.showImportModal ? this.renderImportModal() : ''}
+          ${!this.readOnlyMode && this.showResetModal ? this.renderResetModal() : ''}
+          ${!this.readOnlyMode && this.showAppResetModal ? this.renderAppResetModal() : ''}
+          ${!this.readOnlyMode && this.showDepthReorderModal ? this.renderDepthReorderModal() : ''}
+          ${this.toastMessage ? `
+            <div class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-6 py-3 rounded-xl shadow-2xl text-sm font-semibold z-50 animate-fadeIn flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+              ${escapeHtml(this.toastMessage)}
+            </div>
+          ` : ''}
         `;
         this.attachEventListeners();
       }
@@ -2101,6 +2289,20 @@
                 </button>
               </div>
               <div class="p-4 border-t dark:border-gray-700">
+                <p class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Backup &amp; Restore</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Save or restore your complete depth chart data</p>
+                <div class="flex gap-2">
+                  <button onclick="app.exportFullBackup()" class="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                    Export Backup
+                  </button>
+                  <button onclick="app.importFullBackup()" class="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                    Import Backup
+                  </button>
+                </div>
+              </div>
+              <div class="p-4 border-t dark:border-gray-700">
                 <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Clear all data and start fresh with a new team</p>
                 <button onclick="app.resetApp()" class="w-full py-3 rounded-lg font-display font-semibold border-2 border-red-500 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                   Reset App
@@ -2137,7 +2339,7 @@
                 </div>
                 <div>
                   <h1 class="font-display text-4xl font-bold mb-1" style="letter-spacing: 0.05em;">${escapeHtml(this.team.name.toUpperCase())}</h1>
-                  <p class="text-gray-500 dark:text-gray-400 font-medium text-sm uppercase tracking-wider">Interactive Depth Chart Builder</p>
+                  <p class="text-gray-500 dark:text-gray-400 font-medium text-sm uppercase tracking-wider">${this.readOnlyMode ? 'Shared Depth Chart' : 'Interactive Depth Chart Builder'}</p>
                 </div>
               </div>
               <div class="flex items-center gap-3">
@@ -2147,11 +2349,15 @@
                     Auto-saved
                   </span>
                 ` : ''}
+                ${this.readOnlyMode ? `
+                  <span class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">View Only</span>
+                ` : `
                 <button onclick="app.showTeamSettingsModal = true; app.render()" class="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 btn-hover no-print" title="Team settings" aria-label="Team settings">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-gray-600 dark:text-gray-300">
                     <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
                   </svg>
                 </button>
+                `}
                 <button onclick="app.toggleDarkMode()" class="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 btn-hover no-print" title="Toggle dark mode (D)" aria-label="Toggle dark mode">
                   ${this.darkMode ? `
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-yellow-500">
@@ -2166,7 +2372,19 @@
               </div>
             </div>
 
-            ${totalPlayers > 0 ? `
+            ${this.readOnlyMode ? `
+              <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div class="mb-3">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Depth Chart Progress</span>
+                    <span class="text-sm font-bold" style="color: ${this.team.primaryColor};">${progress.filled}/${progress.total} positions (${progress.percentage}%)</span>
+                  </div>
+                  <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                    <div class="h-2.5 rounded-full transition-all duration-300" style="width: ${progress.percentage}%; background: ${this.team.primaryColor};"></div>
+                  </div>
+                </div>
+              </div>
+            ` : totalPlayers > 0 ? `
               <!-- Roster Stats & Progress -->
               <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <!-- Progress Bar -->
@@ -2247,8 +2465,12 @@
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
               <span class="hidden sm:inline">Export</span>
             </button>
-            <button onclick="app.shareAsImage()" class="flex items-center justify-center gap-2 text-white border-2 px-2 sm:px-4 py-2 rounded-lg font-semibold transition-colors" style="background: ${this.team.primaryColor}; border-color: ${this.team.primaryColor};" title="Share Image">
+            <button onclick="app.shareAsImage()" class="flex items-center justify-center gap-2 text-white border-2 px-2 sm:px-4 py-2 rounded-lg font-semibold transition-colors" style="background: ${this.team.primaryColor}; border-color: ${this.team.primaryColor};" title="Share as Image">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              <span class="hidden sm:inline">Image</span>
+            </button>
+            <button onclick="app.shareViaUrl()" class="flex items-center justify-center gap-2 text-white border-2 px-2 sm:px-4 py-2 rounded-lg font-semibold transition-colors" style="background: ${this.team.primaryColor}; border-color: ${this.team.primaryColor};" title="Copy share link">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
               <span class="hidden sm:inline">Share</span>
             </button>
             <button onclick="app.printChart()" class="flex items-center justify-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white border-2 px-2 sm:px-4 py-2 rounded-lg font-semibold transition-colors" style="border-color: ${this.team.primaryColor};" title="Print">
@@ -2470,12 +2692,14 @@
               class="tooltip ${player ? 'text-white' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-2'} ${isDragOver ? 'drag-over' : ''} rounded-lg shadow-lg transition-colors cursor-pointer position-card-inner relative"
               style="min-width: 80px; ${player ? `background: ${this.team.primaryColor};` : `border-color: ${this.team.primaryColor};`}"
               data-tooltip="${escapeHtml(pos.fullName)}${status ? ' [' + escapeHtml(status) + ']' : ''}${note ? ' - ' + escapeHtml(note) : ''}"
-              onclick="app.selectedSlot = { position: '${posKey}', depth: ${this.twoDeepView ? 0 : this.depthLevel} }; app.showPlayerModal = true; app.render()"
-              draggable="${player ? 'true' : 'false'}"
+              ${!this.readOnlyMode ? `onclick="app.selectedSlot = { position: '${posKey}', depth: ${this.twoDeepView ? 0 : this.depthLevel} }; app.showPlayerModal = true; app.render()"` : ''}
+              draggable="${!this.readOnlyMode && player ? 'true' : 'false'}"
+              ${!this.readOnlyMode ? `
               ondragstart="app.handleDragStart(${player ? JSON.stringify(player).replace(/"/g, '&quot;') : 'null'}, '${posKey}', ${this.twoDeepView ? 0 : this.depthLevel})"
               ondragover="app.handleDragOver('${posKey}', ${this.twoDeepView ? 0 : this.depthLevel}, event)"
               ondragleave="app.handleDragLeave()"
               ondrop="app.handleDrop('${posKey}', ${this.twoDeepView ? 0 : this.depthLevel})"
+              ` : ''}
             >
               ${status ? `
                 <div class="absolute -top-1 -right-1 px-1 py-0.5 text-[8px] font-bold text-white rounded ${this.getStatusColor(status)}" title="${escapeHtml(status)}">
@@ -2534,8 +2758,8 @@
           <div class="border-b border-gray-200 dark:border-gray-700">
             <!-- Starter Row -->
             <div
-              class="flex items-center p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              onclick="app.selectedSlot = { position: '${posKey}', depth: ${this.twoDeepView ? 0 : this.depthLevel} }; app.showPlayerModal = true; app.render()"
+              class="flex items-center p-3 ${!this.readOnlyMode ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700' : ''} transition-colors"
+              ${!this.readOnlyMode ? `onclick="app.selectedSlot = { position: '${posKey}', depth: ${this.twoDeepView ? 0 : this.depthLevel} }; app.showPlayerModal = true; app.render()"` : ''}
             >
               <div class="w-16 flex-shrink-0">
                 <div class="text-white text-center py-1 px-2 rounded font-display font-bold text-sm relative" style="background: ${this.team.primaryColor};">
@@ -2567,8 +2791,8 @@
                   </div>
                 ` : `
                   <div class="flex items-center gap-2 text-gray-400">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    <span class="text-sm">Tap to assign</span>
+                    ${!this.readOnlyMode ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span class="text-sm">Tap to assign</span>` : `<span class="text-sm italic">Empty</span>`}
                   </div>
                 `}
               </div>
@@ -2577,8 +2801,8 @@
             <!-- Backup Row (Two-Deep View) -->
             ${this.twoDeepView ? `
               <div
-                class="flex items-center p-2 pl-6 cursor-pointer bg-gray-50 dark:bg-gray-750 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border-t border-gray-100 dark:border-gray-700"
-                onclick="app.selectedSlot = { position: '${posKey}', depth: 1 }; app.showPlayerModal = true; app.render()"
+                class="flex items-center p-2 pl-6 ${!this.readOnlyMode ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''} bg-gray-50 dark:bg-gray-750 transition-colors border-t border-gray-100 dark:border-gray-700"
+                ${!this.readOnlyMode ? `onclick="app.selectedSlot = { position: '${posKey}', depth: 1 }; app.showPlayerModal = true; app.render()"` : ''}
               >
                 <div class="w-10 flex-shrink-0">
                   <div class="text-gray-500 dark:text-gray-400 text-center py-0.5 px-1 rounded text-[10px] font-bold bg-gray-200 dark:bg-gray-600">
@@ -2606,8 +2830,8 @@
                     </div>
                   ` : `
                     <div class="flex items-center gap-2 text-gray-400">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                      <span class="text-xs">Tap to assign backup</span>
+                      ${!this.readOnlyMode ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      <span class="text-xs">Tap to assign backup</span>` : `<span class="text-xs italic">Empty</span>`}
                     </div>
                   `}
                 </div>
