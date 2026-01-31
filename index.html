@@ -836,9 +836,25 @@
       }
 
       initializeEmptyChart() {
+        // Collect all position keys from default POSITIONS and every formation
+        const allPositions = new Map();
         Object.values(POSITIONS).flat().forEach(pos => {
           const key = pos.isRight ? `${pos.code}-R` : pos.code;
-          this.depthChart[key] = Array(pos.depth).fill(null);
+          allPositions.set(key, pos.depth);
+        });
+        Object.values(FORMATIONS).forEach(group => {
+          Object.values(group).forEach(formation => {
+            (formation.positions || []).forEach(pos => {
+              const key = pos.isRight ? `${pos.code}-R` : pos.code;
+              allPositions.set(key, Math.max(allPositions.get(key) || 0, pos.depth));
+            });
+          });
+        });
+
+        // Reset every known position to empty
+        this.depthChart = {};
+        allPositions.forEach((depth, key) => {
+          this.depthChart[key] = Array(depth).fill(null);
         });
       }
 
@@ -1411,7 +1427,6 @@
         // Reset all app state
         this.roster = [];
         this.team = { name: 'Your Team', primaryColor: '#1a1a2e', secondaryColor: '#ffffff', rosterUrl: '' };
-        this.depthChart = {};
         this.initializeEmptyChart();
         this.playerStatuses = {};
         this.playerNotes = {};
