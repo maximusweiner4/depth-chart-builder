@@ -1666,13 +1666,24 @@
 
       handleDragOver(position, depth, event) {
         event.preventDefault();
+        const key = `${position}-${depth}`;
+        if (this._lastDragOverKey === key) return; // skip if same target
+        // Remove previous highlight
+        document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        // Add highlight to current target
+        const target = document.querySelector(`[data-drop="${key}"]`);
+        if (target) target.classList.add('drag-over');
         this.dragOverPosition = { position, depth };
-        this.render();
+        this._lastDragOverKey = key;
       }
 
-      handleDragLeave() {
+      handleDragLeave(event) {
+        // Only clear if leaving the drop zone entirely (not entering a child)
+        const related = event?.relatedTarget;
+        if (related && event.currentTarget.contains(related)) return;
+        if (event?.currentTarget) event.currentTarget.classList.remove('drag-over');
         this.dragOverPosition = null;
-        this.render();
+        this._lastDragOverKey = null;
       }
 
       handleDrop(toPosition, toDepth) {
@@ -1709,6 +1720,8 @@
 
         this.draggedPlayer = null;
         this.dragOverPosition = null;
+        this._lastDragOverKey = null;
+        document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
         this.render();
       }
 
@@ -2101,16 +2114,8 @@
           return;
         }
 
-        app.innerHTML = `
-          ${this.readOnlyMode && !this._shareBannerDismissed ? `
-            <div class="bg-blue-600 text-white py-3 px-4 text-center text-sm font-semibold flex items-center justify-center gap-3 flex-wrap">
-              <span>You're viewing a shared depth chart.</span>
-              <button onclick="app.loadSharedIntoEditor()" class="bg-white text-blue-600 px-4 py-1.5 rounded-lg font-bold hover:bg-blue-50 transition-colors text-sm">Load into Editor</button>
-              <button onclick="app.dismissShareBanner()" class="text-white/80 hover:text-white underline text-sm">Dismiss</button>
-            </div>
-          ` : ''}
-          <div class="max-w-7xl mx-auto p-4">
-            ${this.renderHeader()}
+        const headerHtml = this.renderHeader();
+        const contentHtml = `
             ${!this.readOnlyMode ? this.renderButtons() : ''}
             ${this.renderTabs()}
             ${this.renderMobileControls()}
@@ -2120,7 +2125,8 @@
             </div>
             ${this.renderField()}
             ${!this.readOnlyMode ? this.renderKeyboardHints() : ''}
-          </div>
+        `;
+        const modalHtml = `
           ${!this.readOnlyMode && this.showOnboarding ? this.renderOnboarding() : ''}
           ${!this.readOnlyMode && this.showSetupModal ? this.renderSetupModal() : ''}
           ${!this.readOnlyMode && this.showTeamSettingsModal ? this.renderTeamSettingsModal() : ''}
@@ -2136,6 +2142,38 @@
             </div>
           ` : ''}
         `;
+
+        // Check if the page structure already exists
+        const headerEl = document.getElementById('header-section');
+        const contentEl = document.getElementById('content-section');
+        const modalEl = document.getElementById('modal-section');
+
+        if (headerEl && contentEl && modalEl) {
+          // Incremental update — only replace sections that changed
+          if (this._lastHeaderHtml !== headerHtml) {
+            headerEl.innerHTML = headerHtml;
+            this._lastHeaderHtml = headerHtml;
+          }
+          contentEl.innerHTML = contentHtml;
+          modalEl.innerHTML = modalHtml;
+        } else {
+          // First render — build full structure
+          app.innerHTML = `
+            ${this.readOnlyMode && !this._shareBannerDismissed ? `
+              <div class="bg-blue-600 text-white py-3 px-4 text-center text-sm font-semibold flex items-center justify-center gap-3 flex-wrap">
+                <span>You're viewing a shared depth chart.</span>
+                <button onclick="app.loadSharedIntoEditor()" class="bg-white text-blue-600 px-4 py-1.5 rounded-lg font-bold hover:bg-blue-50 transition-colors text-sm">Load into Editor</button>
+                <button onclick="app.dismissShareBanner()" class="text-white/80 hover:text-white underline text-sm">Dismiss</button>
+              </div>
+            ` : ''}
+            <div class="max-w-7xl mx-auto p-4">
+              <div id="header-section">${headerHtml}</div>
+              <div id="content-section">${contentHtml}</div>
+            </div>
+            <div id="modal-section">${modalHtml}</div>
+          `;
+          this._lastHeaderHtml = headerHtml;
+        }
         this.attachEventListeners();
       }
 
@@ -2854,7 +2892,7 @@
         const posKey = pos.isRight ? `${pos.code}-R` : pos.code;
         const player = this.depthChart[posKey]?.[this.twoDeepView ? 0 : this.depthLevel];
         const backup = this.twoDeepView ? this.depthChart[posKey]?.[1] : null;
-        const isDragOver = this.dragOverPosition?.position === posKey && this.dragOverPosition?.depth === this.depthLevel;
+        // drag-over state is managed directly via DOM classes in handleDragOver/handleDragLeave
         const status = player ? this.getPlayerStatus(player) : null;
         const note = player ? this.getPlayerNote(player) : '';
         const isBattle = this.positionBattles[posKey];
@@ -2862,15 +2900,16 @@
         return `
           <div class="absolute transform -translate-x-1/2 -translate-y-1/2 position-card" style="left: ${pos.x}%; top: ${pos.y}%;" data-position="${posKey}" data-depth="${this.depthLevel}">
             <div
-              class="tooltip ${player ? 'text-white' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-2'} ${isDragOver ? 'drag-over' : ''} rounded-lg shadow-lg transition-colors ${!this.readOnlyMode ? 'cursor-pointer' : ''} position-card-inner relative"
+              class="tooltip ${player ? 'text-white' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-2'} rounded-lg shadow-lg transition-colors ${!this.readOnlyMode ? 'cursor-pointer' : ''} position-card-inner relative"
               style="min-width: 80px; ${player ? `background: ${this.team.primaryColor};` : `border-color: ${this.team.primaryColor};`}"
               data-tooltip="${escapeHtml(pos.fullName)}${status ? ' [' + escapeHtml(status) + ']' : ''}${note ? ' - ' + escapeHtml(note) : ''}"
+              data-drop="${posKey}-${this.twoDeepView ? 0 : this.depthLevel}"
               ${!this.readOnlyMode ? `onclick="app.selectedSlot = { position: '${posKey}', depth: ${this.twoDeepView ? 0 : this.depthLevel} }; app.showPlayerModal = true; app.render()"` : ''}
               draggable="${!this.readOnlyMode && player ? 'true' : 'false'}"
               ${!this.readOnlyMode ? `
               ondragstart="app.handleDragStart(${player ? safeJsonAttr(player) : 'null'}, '${posKey}', ${this.twoDeepView ? 0 : this.depthLevel})"
               ondragover="app.handleDragOver('${posKey}', ${this.twoDeepView ? 0 : this.depthLevel}, event)"
-              ondragleave="app.handleDragLeave()"
+              ondragleave="app.handleDragLeave(event)"
               ondrop="app.handleDrop('${posKey}', ${this.twoDeepView ? 0 : this.depthLevel})"
               ` : ''}
             >
