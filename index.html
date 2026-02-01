@@ -259,6 +259,22 @@
       }
     }
 
+    // Safe JSON attribute helper - properly escapes all HTML special chars for use in HTML attributes
+    function safeJsonAttr(obj) {
+      return JSON.stringify(obj)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // Validate CSS color to prevent injection via style attributes
+    function isValidColor(color) {
+      if (!color || typeof color !== 'string') return false;
+      return /^#[0-9a-fA-F]{3,8}$/.test(color) || /^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/i.test(color);
+    }
+
     // Position definitions
     // Formation definitions for offense and defense
     const FORMATIONS = {
@@ -690,19 +706,10 @@
         if (saved) {
           try {
             const savedTeam = JSON.parse(saved);
-            // Check if the team has changed (new scrape)
-            if (savedTeam.name !== DEFAULT_TEAM.name || savedTeam.rosterUrl !== DEFAULT_TEAM.rosterUrl) {
-              // Team changed - clear old data and use new defaults
-              console.log(`Team changed from ${savedTeam.name} to ${DEFAULT_TEAM.name}, resetting data...`);
-              localStorage.removeItem('generic-team-config');
-              localStorage.removeItem('generic-roster');
-              localStorage.removeItem('generic-depth-chart');
-              this.team = { ...DEFAULT_TEAM };
-              this.roster = [...DEFAULT_ROSTER];
-              this.initializeEmptyChart();
-              return;
-            }
             this.team = { ...DEFAULT_TEAM, ...savedTeam };
+            // Validate colors to prevent CSS injection from corrupted data
+            if (!isValidColor(this.team.primaryColor)) this.team.primaryColor = DEFAULT_TEAM.primaryColor;
+            if (!isValidColor(this.team.secondaryColor)) this.team.secondaryColor = DEFAULT_TEAM.secondaryColor;
           } catch (e) {
             console.error('Failed to parse saved team config, using defaults:', e);
             localStorage.removeItem('generic-team-config');
@@ -859,7 +866,12 @@
       }
 
       saveStateForUndo() {
-        this.undoStack.push(JSON.stringify(this.depthChart));
+        this.undoStack.push(JSON.stringify({
+          depthChart: this.depthChart,
+          playerStatuses: this.playerStatuses,
+          playerNotes: this.playerNotes,
+          positionBattles: this.positionBattles
+        }));
         if (this.undoStack.length > this.maxUndoSteps) {
           this.undoStack.shift();
         }
@@ -868,8 +880,17 @@
 
       undo() {
         if (this.undoStack.length > 0) {
-          this.redoStack.push(JSON.stringify(this.depthChart));
-          this.depthChart = JSON.parse(this.undoStack.pop());
+          this.redoStack.push(JSON.stringify({
+            depthChart: this.depthChart,
+            playerStatuses: this.playerStatuses,
+            playerNotes: this.playerNotes,
+            positionBattles: this.positionBattles
+          }));
+          const state = JSON.parse(this.undoStack.pop());
+          this.depthChart = state.depthChart || state;
+          if (state.playerStatuses) this.playerStatuses = state.playerStatuses;
+          if (state.playerNotes) this.playerNotes = state.playerNotes;
+          if (state.positionBattles) this.positionBattles = state.positionBattles;
           this.autoSave();
           this.render();
         }
@@ -877,8 +898,17 @@
 
       redo() {
         if (this.redoStack.length > 0) {
-          this.undoStack.push(JSON.stringify(this.depthChart));
-          this.depthChart = JSON.parse(this.redoStack.pop());
+          this.undoStack.push(JSON.stringify({
+            depthChart: this.depthChart,
+            playerStatuses: this.playerStatuses,
+            playerNotes: this.playerNotes,
+            positionBattles: this.positionBattles
+          }));
+          const state = JSON.parse(this.redoStack.pop());
+          this.depthChart = state.depthChart || state;
+          if (state.playerStatuses) this.playerStatuses = state.playerStatuses;
+          if (state.playerNotes) this.playerNotes = state.playerNotes;
+          if (state.positionBattles) this.positionBattles = state.positionBattles;
           this.autoSave();
           this.render();
         }
@@ -892,8 +922,8 @@
         localStorage.setItem('generic-two-deep-view', JSON.stringify(this.twoDeepView));
         this.lastSaved = new Date();
         this.saving = true;
-        this.render();
-        setTimeout(() => {
+        if (this._saveTimeout) clearTimeout(this._saveTimeout);
+        this._saveTimeout = setTimeout(() => {
           this.saving = false;
           this.render();
         }, 1500);
@@ -1089,8 +1119,10 @@
 
           // Detect compact format (has 't' array) vs legacy format (has 'team' object)
           if (data.t && Array.isArray(data.t)) {
-            // Compact format
-            this.team = { ...this.team, name: data.t[0], primaryColor: data.t[1], secondaryColor: data.t[2] || '#ffffff' };
+            // Compact format - validate colors before applying
+            const sharedPrimary = isValidColor(data.t[1]) ? data.t[1] : DEFAULT_TEAM.primaryColor;
+            const sharedSecondary = isValidColor(data.t[2]) ? data.t[2] : '#ffffff';
+            this.team = { ...this.team, name: String(data.t[0] || '').substring(0, 100), primaryColor: sharedPrimary, secondaryColor: sharedSecondary };
 
             // Expand compact player arrays back to full objects
             const dc = {};
@@ -1098,7 +1130,7 @@
               dc[posKey] = [];
               for (let i = 0; i < slots.length; i++) {
                 if (slots[i]) {
-                  dc[posKey][i] = { number: slots[i][0], name: slots[i][1], year: slots[i][2] || '', position: '', height: '', weight: '', hometown: '', highSchool: '', previousSchool: '', url: '' };
+                  dc[posKey][i] = { number: String(slots[i][0] || ''), name: String(slots[i][1] || ''), year: String(slots[i][2] || ''), position: '', height: '', weight: '', hometown: '', highSchool: '', previousSchool: '', url: '' };
                 } else {
                   dc[posKey][i] = null;
                 }
@@ -1110,14 +1142,38 @@
             this.defenseFormation = data.f || 'nickel';
             this.twoDeepView = !!data.v;
           } else {
-            // Legacy format
-            this.team = { ...this.team, ...data.team };
+            // Legacy format - validate colors
+            const legacyTeam = data.team || {};
+            if (legacyTeam.primaryColor && !isValidColor(legacyTeam.primaryColor)) legacyTeam.primaryColor = DEFAULT_TEAM.primaryColor;
+            if (legacyTeam.secondaryColor && !isValidColor(legacyTeam.secondaryColor)) legacyTeam.secondaryColor = '#ffffff';
+            if (legacyTeam.name) legacyTeam.name = String(legacyTeam.name).substring(0, 100);
+            this.team = { ...this.team, ...legacyTeam };
             this.depthChart = data.depthChart || {};
             this.playerStatuses = data.playerStatuses || {};
             this.offenseFormation = data.offenseFormation || 'pro';
             this.defenseFormation = data.defenseFormation || 'nickel';
             this.twoDeepView = data.twoDeepView || false;
           }
+
+          // Ensure all positions exist (shared payload may be sparse)
+          const allPos = new Map();
+          Object.values(POSITIONS).flat().forEach(pos => {
+            const key = pos.isRight ? `${pos.code}-R` : pos.code;
+            allPos.set(key, pos.depth);
+          });
+          Object.values(FORMATIONS).forEach(group => {
+            Object.values(group).forEach(formation => {
+              (formation.positions || []).forEach(pos => {
+                const key = pos.isRight ? `${pos.code}-R` : pos.code;
+                allPos.set(key, Math.max(allPos.get(key) || 0, pos.depth));
+              });
+            });
+          });
+          allPos.forEach((depth, key) => {
+            if (!this.depthChart[key]) {
+              this.depthChart[key] = Array(depth).fill(null);
+            }
+          });
 
           this.loadDarkMode();
           return true;
@@ -1330,9 +1386,8 @@
               // Status badge
               const status = this.getPlayerStatus(player);
               if (status) {
-                ctx.fillStyle = this.getStatusColor(status).replace('bg-', '').includes('red') ? '#ef4444' :
-                               this.getStatusColor(status).includes('yellow') ? '#eab308' :
-                               this.getStatusColor(status).includes('green') ? '#22c55e' : '#8b5cf6';
+                const statusColorMap = { 'OUT': '#ef4444', 'DOUBTFUL': '#f87171', 'QUESTIONABLE': '#eab308', 'PROBABLE': '#4ade80', 'SUSPENDED': '#a855f7', 'PORTAL': '#3b82f6', 'REDSHIRT': '#6b7280' };
+                ctx.fillStyle = statusColorMap[status] || '#8b5cf6';
                 ctx.beginPath();
                 ctx.arc(x + boxWidth/2 - 8, y - boxHeight/2 + 8, 6, 0, Math.PI * 2);
                 ctx.fill();
@@ -1451,8 +1506,8 @@
           const newRoster = [];
 
           for (const line of lines) {
-            const commaFormat = line.match(/(\d+),?\s*([^,]+),?\s*([A-Z]{1,3}),?\s*(.+)/);
-            const hashFormat = line.match(/#(\d+)\s+([A-Za-z\s'.]+?)\s+([A-Z]{1,3})\s+(.+)/);
+            const commaFormat = line.match(/(\d+),?\s*([^,]+),?\s*([A-Z]{1,5}),?\s*(.+)/);
+            const hashFormat = line.match(/#(\d+)\s+([A-Za-z\s'.\-]+?)\s+([A-Z]{1,5})\s+(.+)/);
 
             let match = commaFormat || hashFormat;
 
@@ -1507,6 +1562,10 @@
         const positionsToMatch = [positionToSearch];
         if (positionToSearch === 'DE' || positionToSearch === 'DT' || positionToSearch === 'NT') {
           positionsToMatch.push('DL', 'DE', 'DT', 'NT', 'EDGE');
+        }
+        // Allow OL sub-positions (OT, OG, C) to appear in any OL position
+        if (positionToSearch === 'OL') {
+          positionsToMatch.push('OT', 'OG', 'C');
         }
         // Allow DB, CB, and S players in CB and S positions
         if (positionToSearch === 'CB' || positionToSearch === 'S') {
@@ -1585,6 +1644,7 @@
       }
 
       removePlayer(pos, depth) {
+        if (!this.depthChart[pos]) return;
         this.saveStateForUndo();
         this.depthChart[pos] = [...this.depthChart[pos]];
         this.depthChart[pos][depth] = null;
@@ -1611,33 +1671,23 @@
         if (!this.draggedPlayer) return;
 
         const { player, fromPosition, fromDepth } = this.draggedPlayer;
-        const fromPosBase = fromPosition.replace('-R', '').split('-')[0];
-        const toPosBase = toPosition.replace('-R', '').split('-')[0];
+        const fromBase = fromPosition.replace('-R', '').split('-')[0];
+        const toBase = toPosition.replace('-R', '').split('-')[0];
 
-        const positionGroups = {
-          'WR': ['WR'],
-          'OL': ['OT', 'OG', 'C'],
-          'CB': ['CB', 'DB', 'S'],
-          'S': ['S', 'DB', 'CB'],
-          'LB': ['LB'],
-          'DE': ['DE'],
-          'DT': ['DT'],
-          'QB': ['QB'],
-          'RB': ['RB'],
-          'TE': ['TE'],
-          'K': ['K'],
-          'P': ['P'],
-          'LS': ['LS']
+        // Map base position codes to drag-drop compatibility groups
+        const getDropGroup = (base) => {
+          const groups = {
+            'WR': 'WR', 'QB': 'QB', 'RB': 'RB', 'FB': 'RB', 'TE': 'TE',
+            'OT': 'OL', 'OG': 'OL', 'C': 'OL',
+            'DE': 'DL', 'DT': 'DL', 'NT': 'DL',
+            'LB': 'LB',
+            'CB': 'DB', 'S': 'DB',
+            'K': 'K', 'P': 'P', 'LS': 'LS', 'KR': 'RET', 'PR': 'RET', 'H': 'H', 'KOS': 'KOS'
+          };
+          return groups[base] || base;
         };
 
-        let canDrop = false;
-        for (const [group, positions] of Object.entries(positionGroups)) {
-          if (positions.some(p => fromPosBase.includes(p) || fromPosition.includes(p)) &&
-              positions.some(p => toPosBase.includes(p) || toPosition.includes(p))) {
-            canDrop = true;
-            break;
-          }
-        }
+        const canDrop = getDropGroup(fromBase) === getDropGroup(toBase);
 
         if (canDrop) {
           this.saveStateForUndo();
@@ -1656,11 +1706,17 @@
 
       setupKeyboardShortcuts() {
         document.addEventListener('keydown', (e) => {
+          const anyModalOpen = this.showPlayerModal || this.showImportModal || this.showResetModal || this.showTeamSettingsModal || this.showAppResetModal || this.showDepthReorderModal || this.showSetupModal || this.showOnboarding || this.showStatusModal;
+
           if (e.key === 'Escape') {
             if (this.showPlayerModal) {
               this.showPlayerModal = false;
               this.selectedSlot = null;
               this.searchQuery = '';
+              this.render();
+            } else if (this.showDepthReorderModal) {
+              this.showDepthReorderModal = false;
+              this.selectedPositionGroup = null;
               this.render();
             } else if (this.showImportModal) {
               this.showImportModal = false;
@@ -1676,6 +1732,15 @@
             } else if (this.showAppResetModal) {
               this.showAppResetModal = false;
               this.render();
+            } else if (this.showSetupModal) {
+              this.showSetupModal = false;
+              this.render();
+            } else if (this.showOnboarding) {
+              this.dismissOnboarding();
+            } else if (this.showStatusModal) {
+              this.showStatusModal = false;
+              this.statusEditPlayer = null;
+              this.render();
             }
           }
 
@@ -1689,11 +1754,11 @@
             this.redo();
           }
 
-          if (e.key === 'd' && !this.showPlayerModal && !this.showImportModal && !this.showResetModal && !this.showTeamSettingsModal && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+          if (e.key === 'd' && !anyModalOpen && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
             this.toggleDarkMode();
           }
 
-          if (!this.showPlayerModal && !this.showImportModal && !this.showResetModal && !this.showTeamSettingsModal && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+          if (!anyModalOpen && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
             if (e.key === 'ArrowUp' && this.depthLevel > 0) {
               this.depthLevel--;
               this.render();
@@ -1741,6 +1806,17 @@
         } else if (type === "defense") {
           this.defenseFormation = formation;
           localStorage.setItem("depth-chart-defense-formation", formation);
+        }
+        // Ensure new formation positions exist in depthChart
+        const formationGroup = type === "offense" ? FORMATIONS.offense : FORMATIONS.defense;
+        const newFormation = formationGroup[formation];
+        if (newFormation) {
+          newFormation.positions.forEach(pos => {
+            const key = pos.isRight ? `${pos.code}-R` : pos.code;
+            if (!this.depthChart[key]) {
+              this.depthChart[key] = Array(pos.depth || 3).fill(null);
+            }
+          });
         }
         this.render();
       }
@@ -2029,7 +2105,7 @@
             ${this.renderHeader()}
             ${!this.readOnlyMode ? this.renderButtons() : ''}
             ${this.renderTabs()}
-            ${!this.readOnlyMode ? this.renderMobileControls() : ''}
+            ${this.renderMobileControls()}
             <div class="desktop-only">
               ${this.activeTab !== 'special' ? this.renderDepthSelector() : ''}
               ${!this.readOnlyMode && this.activeTab !== 'special' ? this.renderFormationSelector() : ''}
@@ -2078,7 +2154,7 @@
 
       renderOnboarding() {
         return `
-          <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+          <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="Welcome onboarding">
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
               <div class="p-6 text-center" style="background: ${this.team.primaryColor}; color: white;">
                 <div class="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-4">
@@ -2124,7 +2200,7 @@
       renderSetupModal() {
         const importTab = this.setupImportTab || 'url';
         return `
-          <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 overflow-y-auto" role="dialog" aria-modal="true" aria-label="Team setup">
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden my-4">
               <div class="p-6 text-center text-white" style="background: ${this.team.primaryColor};">
                 <h2 class="font-display text-2xl font-bold">Setup Your Team</h2>
@@ -2219,7 +2295,7 @@
                         id="setupRosterTextarea"
                         placeholder="#1 John Smith QB Sr.&#10;#24 Mike Johnson RB Jr.&#10;#7 David Wilson WR So.&#10;…"
                         class="w-full h-48 p-3 border-2 border-gray-200 dark:border-gray-600 rounded-lg font-mono text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      ></textarea>
+                      >${escapeHtml(this.importText)}</textarea>
                     </div>
                   `}
 
@@ -2260,9 +2336,14 @@
           return;
         }
 
-        // Validate URL format
+        // Validate URL format and protocol
         try {
-          new URL(url);
+          const parsed = new URL(url);
+          if (!['http:', 'https:'].includes(parsed.protocol)) {
+            this.importMessage = 'Please enter an http or https URL';
+            this.render();
+            return;
+          }
         } catch (e) {
           this.importMessage = 'Please enter a valid URL';
           this.render();
@@ -2321,12 +2402,13 @@
         if (nameInput.value.trim()) {
           this.team.name = nameInput.value.trim();
         }
-        if (colorInput.value.trim()) {
-          this.team.primaryColor = colorInput.value.trim();
+        if (colorInput && colorInput.value.trim()) {
+          const color = colorInput.value.trim();
+          if (isValidColor(color)) this.team.primaryColor = color;
         }
         this.saveTeam();
 
-        if (rosterTextarea.value.trim()) {
+        if (rosterTextarea && rosterTextarea.value.trim()) {
           this.importText = rosterTextarea.value;
           this.importRoster();
         } else {
@@ -2337,7 +2419,7 @@
 
       renderTeamSettingsModal() {
         return `
-          <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { app.showTeamSettingsModal = false; app.render(); }">
+          <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="Team settings" onclick="if(event.target === this) { app.showTeamSettingsModal = false; app.render(); }">
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
               <div class="p-4 text-white flex items-center justify-between" style="background: ${this.team.primaryColor};">
                 <h2 class="font-display text-xl font-bold">Team Settings</h2>
@@ -2398,8 +2480,11 @@
       saveTeamSettings() {
         const nameInput = document.getElementById('settingsTeamName');
         const colorInput = document.getElementById('settingsTeamColorText');
-        if (nameInput.value.trim()) this.team.name = nameInput.value.trim();
-        if (colorInput.value.trim()) this.team.primaryColor = colorInput.value.trim();
+        if (nameInput && nameInput.value.trim()) this.team.name = nameInput.value.trim();
+        if (colorInput && colorInput.value.trim()) {
+          const color = colorInput.value.trim();
+          if (isValidColor(color)) this.team.primaryColor = color;
+        }
         this.saveTeam();
         this.showTeamSettingsModal = false;
         this.render();
@@ -2711,8 +2796,8 @@
               </button>
             </div>
 
-            <!-- Formation Row (only for offense/defense) -->
-            ${this.activeTab !== 'special' ? `
+            <!-- Formation Row (only for offense/defense, hidden in read-only) -->
+            ${this.activeTab !== 'special' && !this.readOnlyMode ? `
               <div class="flex items-center gap-2">
                 <span class="text-xs font-semibold text-gray-600 dark:text-gray-400 w-14 flex-shrink-0">Form:</span>
                 <select
@@ -2771,13 +2856,13 @@
         return `
           <div class="absolute transform -translate-x-1/2 -translate-y-1/2 position-card" style="left: ${pos.x}%; top: ${pos.y}%;" data-position="${posKey}" data-depth="${this.depthLevel}">
             <div
-              class="tooltip ${player ? 'text-white' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-2'} ${isDragOver ? 'drag-over' : ''} rounded-lg shadow-lg transition-colors cursor-pointer position-card-inner relative"
+              class="tooltip ${player ? 'text-white' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-2'} ${isDragOver ? 'drag-over' : ''} rounded-lg shadow-lg transition-colors ${!this.readOnlyMode ? 'cursor-pointer' : ''} position-card-inner relative"
               style="min-width: 80px; ${player ? `background: ${this.team.primaryColor};` : `border-color: ${this.team.primaryColor};`}"
               data-tooltip="${escapeHtml(pos.fullName)}${status ? ' [' + escapeHtml(status) + ']' : ''}${note ? ' - ' + escapeHtml(note) : ''}"
               ${!this.readOnlyMode ? `onclick="app.selectedSlot = { position: '${posKey}', depth: ${this.twoDeepView ? 0 : this.depthLevel} }; app.showPlayerModal = true; app.render()"` : ''}
               draggable="${!this.readOnlyMode && player ? 'true' : 'false'}"
               ${!this.readOnlyMode ? `
-              ondragstart="app.handleDragStart(${player ? JSON.stringify(player).replace(/"/g, '&quot;') : 'null'}, '${posKey}', ${this.twoDeepView ? 0 : this.depthLevel})"
+              ondragstart="app.handleDragStart(${player ? safeJsonAttr(player) : 'null'}, '${posKey}', ${this.twoDeepView ? 0 : this.depthLevel})"
               ondragover="app.handleDragOver('${posKey}', ${this.twoDeepView ? 0 : this.depthLevel}, event)"
               ondragleave="app.handleDragLeave()"
               ondrop="app.handleDrop('${posKey}', ${this.twoDeepView ? 0 : this.depthLevel})"
@@ -2816,9 +2901,11 @@
                 </div>
               ` : `
                 <div class="px-2 py-3 text-center">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mx-auto opacity-50">
-                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                  </svg>
+                  ${!this.readOnlyMode ? `
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mx-auto opacity-50">
+                      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                  ` : `<span class="text-xs opacity-40">&mdash;</span>`}
                 </div>
               `}
             </div>
@@ -2883,7 +2970,7 @@
             <!-- Backup Row (Two-Deep View) -->
             ${this.twoDeepView ? `
               <div
-                class="flex items-center p-2 pl-6 ${!this.readOnlyMode ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''} bg-gray-50 dark:bg-gray-750 transition-colors border-t border-gray-100 dark:border-gray-700"
+                class="flex items-center p-2 pl-6 ${!this.readOnlyMode ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''} bg-gray-50 dark:bg-gray-700 transition-colors border-t border-gray-100 dark:border-gray-700"
                 ${!this.readOnlyMode ? `onclick="app.selectedSlot = { position: '${posKey}', depth: 1 }; app.showPlayerModal = true; app.render()"` : ''}
               >
                 <div class="w-10 flex-shrink-0">
@@ -2950,7 +3037,7 @@
         });
 
         return `
-          <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { app.showPlayerModal = false; app.selectedSlot = null; app.searchQuery = ''; app.render(); }">
+          <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="Player selection" onclick="if(event.target === this) { app.showPlayerModal = false; app.selectedSlot = null; app.searchQuery = ''; app.render(); }">
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
               <div class="p-4 border-b dark:border-gray-700 flex items-center justify-between text-white" style="background: ${this.team.primaryColor};">
                 <div>
@@ -3009,7 +3096,7 @@
                     <div class="mb-3">
                       <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Status / Availability</label>
                       <select
-                        onchange="app.setPlayerStatus(${JSON.stringify(currentPlayer).replace(/"/g, '&quot;')}, this.value || null)"
+                        onchange="app.setPlayerStatus(${safeJsonAttr(currentPlayer)}, this.value || null)"
                         class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       >
                         <option value="" ${!this.getPlayerStatus(currentPlayer) ? 'selected' : ''}>Active / Healthy</option>
@@ -3030,7 +3117,7 @@
                         type="text"
                         placeholder="e.g., Breakout candidate, Coming off ACL..."
                         value="${escapeHtml(this.getPlayerNote(currentPlayer))}"
-                        onchange="app.setPlayerNote(${JSON.stringify(currentPlayer).replace(/"/g, '&quot;')}, this.value)"
+                        onchange="app.setPlayerNote(${safeJsonAttr(currentPlayer)}, this.value)"
                         class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       />
                     </div>
@@ -3041,7 +3128,7 @@
                   <div class="space-y-2">
                     ${availablePlayers.map((player, i) => `
                       <button
-                        onclick="app.addPlayer('${position}', ${depth}, ${JSON.stringify({name: player.name, number: player.number, position: player.position, year: player.year, height: player.height, weight: player.weight, hometown: player.hometown, highSchool: player.highSchool, previousSchool: player.previousSchool, url: player.url}).replace(/"/g, '&quot;')})"
+                        onclick="app.addPlayer('${position}', ${depth}, ${safeJsonAttr({name: player.name, number: player.number, position: player.position, year: player.year, height: player.height, weight: player.weight, hometown: player.hometown, highSchool: player.highSchool, previousSchool: player.previousSchool, url: player.url})})"
                         class="w-full text-left ${player.isAssigned ? 'bg-gray-100 dark:bg-gray-800 opacity-60' : 'bg-gray-50 dark:bg-gray-700'} hover:bg-gray-100 dark:hover:bg-gray-600 hover:opacity-100 border border-gray-200 dark:border-gray-600 rounded-lg p-3 transition-all"
                       >
                         <div class="flex items-center gap-3">
@@ -3194,7 +3281,7 @@
 
       renderImportModal() {
         return `
-          <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { app.showImportModal = false; app.importText = ''; app.importMessage = ''; app.render(); }">
+          <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="Import roster" onclick="if(event.target === this) { app.showImportModal = false; app.importText = ''; app.importMessage = ''; app.render(); }">
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
               <div class="p-4 border-b dark:border-gray-700 flex items-center justify-between text-white" style="background: ${this.team.primaryColor};">
                 <h2 class="font-display text-xl font-bold">Import Roster</h2>
@@ -3234,7 +3321,7 @@
 
       renderResetModal() {
         return `
-          <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { app.showResetModal = false; app.render(); }">
+          <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="Reset confirmation" onclick="if(event.target === this) { app.showResetModal = false; app.render(); }">
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
               <div class="p-6 text-center">
                 <div class="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -3256,7 +3343,7 @@
 
       renderAppResetModal() {
         return `
-          <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { app.showAppResetModal = false; app.render(); }">
+          <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="App reset confirmation" onclick="if(event.target === this) { app.showAppResetModal = false; app.render(); }">
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
               <div class="p-6 text-center">
                 <div class="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -3315,7 +3402,7 @@
         const unassignedCount = allPlayers.filter(p => !p.isAssigned).length;
 
         return `
-          <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { app.showDepthReorderModal = false; app.selectedPositionGroup = null; app.render(); }">
+          <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="Depth reorder" onclick="if(event.target === this) { app.showDepthReorderModal = false; app.selectedPositionGroup = null; app.render(); }">
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
               <div class="p-4 border-b dark:border-gray-700 flex items-center justify-between text-white" style="background: ${this.team.primaryColor};">
                 <div>
@@ -3401,7 +3488,7 @@
                                   const isThisPlayerInSlot = occupied && occupied.number === player.number && occupied.name === player.name;
                                   return !isThisPlayerInSlot ? `
                                     <button
-                                      onclick="app.assignFromReorder('${slot.key}', ${d}, ${JSON.stringify({name: player.name, number: player.number, position: player.position, year: player.year, height: player.height, weight: player.weight, hometown: player.hometown, highSchool: player.highSchool, previousSchool: player.previousSchool, url: player.url}).replace(/"/g, '&quot;')})"
+                                      onclick="app.assignFromReorder('${slot.key}', ${d}, ${safeJsonAttr({name: player.name, number: player.number, position: player.position, year: player.year, height: player.height, weight: player.weight, hometown: player.hometown, highSchool: player.highSchool, previousSchool: player.previousSchool, url: player.url})})"
                                       class="px-2 py-1 text-xs rounded border hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${occupied ? 'border-dashed opacity-70' : ''}"
                                       style="border-color: ${this.team.primaryColor}; color: ${this.team.primaryColor};"
                                       title="${occupied ? 'Replace ' + escapeHtml(occupied.name) : ''}"
@@ -3514,13 +3601,14 @@
         const searchInput = document.getElementById('playerSearch');
         if (searchInput) {
           searchInput.addEventListener('input', (e) => {
+            const cursorPos = e.target.selectionStart;
             this.searchQuery = e.target.value;
             this.render();
             setTimeout(() => {
               const newInput = document.getElementById('playerSearch');
               if (newInput) {
                 newInput.focus();
-                newInput.setSelectionRange(newInput.value.length, newInput.value.length);
+                newInput.setSelectionRange(cursorPos, cursorPos);
               }
             }, 0);
           });
