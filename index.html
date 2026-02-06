@@ -630,6 +630,7 @@
         this.showSetupModal = false;
         this.showTeamSettingsModal = false;
         this.showAppResetModal = false;
+        this.confirmDialog = null;
         this.fetchingRoster = false;
         this.importText = '';
         this.importMessage = '';
@@ -1041,24 +1042,25 @@
             try {
               const data = JSON.parse(ev.target.result);
               if (!data.version || !data['generic-depth-chart']) {
-                alert('Invalid backup file. The file must be a depth chart backup exported from this app.');
+                this.showToast('Invalid backup file. Please use a file exported from this app.');
                 return;
               }
-              if (!confirm('This will replace all current data. Continue?')) return;
-              const backupKeys = [
-                'generic-depth-chart', 'generic-player-statuses', 'generic-player-notes',
-                'generic-position-battles', 'generic-two-deep-view', 'generic-team-config',
-                'generic-roster', 'generic-dark-mode', 'depth-chart-offense-formation',
-                'depth-chart-defense-formation'
-              ];
-              backupKeys.forEach(key => {
-                if (data[key] !== undefined) {
-                  localStorage.setItem(key, data[key]);
-                }
+              this.showConfirmDialog('Import Backup', 'This will replace all current data. Are you sure you want to continue?', () => {
+                const backupKeys = [
+                  'generic-depth-chart', 'generic-player-statuses', 'generic-player-notes',
+                  'generic-position-battles', 'generic-two-deep-view', 'generic-team-config',
+                  'generic-roster', 'generic-dark-mode', 'depth-chart-offense-formation',
+                  'depth-chart-defense-formation'
+                ];
+                backupKeys.forEach(key => {
+                  if (data[key] !== undefined) {
+                    localStorage.setItem(key, data[key]);
+                  }
+                });
+                window.location.reload();
               });
-              window.location.reload();
             } catch (err) {
-              alert('Failed to read backup file. Make sure it is a valid JSON file.');
+              this.showToast('Failed to read backup file. Make sure it is a valid JSON file.');
             }
           };
           reader.readAsText(file);
@@ -1241,6 +1243,16 @@
           this.toastMessage = '';
           this.render();
         }, 3000);
+      }
+
+      showConfirmDialog(title, message, onConfirm) {
+        this.confirmDialog = { title, message, onConfirm };
+        this.render();
+      }
+
+      dismissConfirmDialog() {
+        this.confirmDialog = null;
+        this.render();
       }
 
       // Player status helper methods
@@ -1464,7 +1476,7 @@
 
         } catch (error) {
           console.error('Error generating image:', error);
-          alert('Could not generate image. Try using the Print function instead.');
+          this.showToast('Could not generate image. Try using the Print function instead.');
         }
       }
 
@@ -1751,10 +1763,12 @@
 
       setupKeyboardShortcuts() {
         document.addEventListener('keydown', (e) => {
-          const anyModalOpen = this.showPlayerModal || this.showImportModal || this.showResetModal || this.showTeamSettingsModal || this.showAppResetModal || this.showDepthReorderModal || this.showSetupModal || this.showOnboarding || this.showStatusModal;
+          const anyModalOpen = this.showPlayerModal || this.showImportModal || this.showResetModal || this.showTeamSettingsModal || this.showAppResetModal || this.showDepthReorderModal || this.showSetupModal || this.showOnboarding || this.showStatusModal || this.confirmDialog;
 
           if (e.key === 'Escape') {
-            if (this.showPlayerModal) {
+            if (this.confirmDialog) {
+              this.dismissConfirmDialog();
+            } else if (this.showPlayerModal) {
               this.showPlayerModal = false;
               this.selectedSlot = null;
               this.searchQuery = '';
@@ -2159,6 +2173,20 @@
           ${!this.readOnlyMode && this.showResetModal ? this.renderResetModal() : ''}
           ${!this.readOnlyMode && this.showAppResetModal ? this.renderAppResetModal() : ''}
           ${!this.readOnlyMode && this.showDepthReorderModal ? this.renderDepthReorderModal() : ''}
+          ${this.confirmDialog ? `
+            <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="Confirm action" onclick="if(event.target === this) { app.dismissConfirmDialog(); }">
+              <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full overflow-hidden animate-fadeIn">
+                <div class="p-5">
+                  <h3 class="font-display text-lg font-bold text-gray-900 dark:text-white mb-2">${escapeHtml(this.confirmDialog.title)}</h3>
+                  <p class="text-gray-600 dark:text-gray-400 text-sm">${escapeHtml(this.confirmDialog.message)}</p>
+                </div>
+                <div class="flex gap-3 p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                  <button onclick="app.dismissConfirmDialog()" class="flex-1 px-4 py-2.5 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white rounded-lg font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancel</button>
+                  <button onclick="if(app.confirmDialog?.onConfirm) app.confirmDialog.onConfirm(); app.dismissConfirmDialog();" class="flex-1 px-4 py-2.5 text-white rounded-lg font-semibold transition-colors" style="background: ${this.team.primaryColor};">Continue</button>
+                </div>
+              </div>
+            </div>
+          ` : ''}
           ${this.toastMessage ? `
             <div class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-6 py-3 rounded-xl shadow-2xl text-sm font-semibold z-50 animate-fadeIn flex items-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
@@ -2451,7 +2479,7 @@
           if (data.roster && data.roster.length > 0) {
             this.roster = data.roster;
             localStorage.setItem('generic-roster', JSON.stringify(this.roster));
-            this.importMessage = `Success! Imported ${data.roster.length} players from ${escapeHtml(data.team?.name || 'roster')}`;
+            this.importMessage = `Success! Imported ${data.roster.length} players from ${data.team?.name || 'roster'}`;
             this.showSetupModal = false;
           } else {
             this.importMessage = 'No players found on that page. Try using Manual Entry.';
@@ -2459,7 +2487,9 @@
 
         } catch (error) {
           console.error('Fetch error:', error);
-          this.importMessage = 'URL import requires a server backend (e.g. Vercel deployment). Please use the "Manual Entry" tab to paste your roster text instead.';
+          this.importMessage = error.message === 'Failed to fetch'
+            ? 'Could not connect to the server. Please check your internet connection and try again, or use "Manual Entry" instead.'
+            : `Import failed: ${error.message}. Try a different URL or use "Manual Entry" instead.`;
         } finally {
           this.fetchingRoster = false;
         }
@@ -3131,7 +3161,7 @@
               <div class="p-4 border-b dark:border-gray-700 flex items-center justify-between text-white" style="background: ${this.team.primaryColor};">
                 <div>
                   <h2 class="font-display text-xl font-bold">${posInfo?.fullName || position}</h2>
-                  <p class="text-sm text-white/70">${depth === 0 ? 'Starter' : `${depth + 1}${depth === 1 ? 'nd' : 'rd'} String`}</p>
+                  <p class="text-sm text-white/70">${depth === 0 ? 'Starter' : `${depth + 1}${depth === 1 ? 'nd' : depth === 2 ? 'rd' : 'th'} String`}</p>
                 </div>
                 <button onclick="app.showPlayerModal = false; app.selectedSlot = null; app.searchQuery = ''; app.render()" class="text-white/80 hover:text-white p-1" aria-label="Close player selection">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -3671,20 +3701,6 @@
         if (settingsColor && settingsColorText) {
           settingsColor.addEventListener('input', (e) => { settingsColorText.value = e.target.value; });
           settingsColorText.addEventListener('input', (e) => { settingsColor.value = e.target.value; });
-        }
-
-        // URL input for roster import
-        const urlInput = document.getElementById('rosterUrlInput');
-        const commandOutput = document.getElementById('commandOutput');
-        if (urlInput && commandOutput) {
-          urlInput.addEventListener('input', (e) => {
-            const url = e.target.value.trim();
-            if (url) {
-              commandOutput.value = `node scrape-roster.js "${url}" && node update-html.js`;
-            } else {
-              commandOutput.value = '';
-            }
-          });
         }
 
         const searchInput = document.getElementById('playerSearch');
