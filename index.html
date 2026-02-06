@@ -2420,7 +2420,49 @@
           return;
         }
 
-        this.importMessage = 'URL import is not available in the standalone version. Please use the "Paste Roster Text" tab instead.';
+        this.fetchingRoster = true;
+        this.importMessage = '';
+        this.render();
+
+        try {
+          const response = await fetch('/api/scrape', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to fetch roster');
+          }
+
+          // Update team info
+          if (data.team) {
+            this.team.name = data.team.name || this.team.name;
+            if (isValidColor(data.team.primaryColor)) {
+              this.team.primaryColor = data.team.primaryColor;
+            }
+            this.team.rosterUrl = data.team.rosterUrl || url;
+            this.saveTeam();
+          }
+
+          // Update roster
+          if (data.roster && data.roster.length > 0) {
+            this.roster = data.roster;
+            localStorage.setItem('generic-roster', JSON.stringify(this.roster));
+            this.importMessage = `Success! Imported ${data.roster.length} players from ${escapeHtml(data.team?.name || 'roster')}`;
+            this.showSetupModal = false;
+          } else {
+            this.importMessage = 'No players found on that page. Try using Manual Entry.';
+          }
+
+        } catch (error) {
+          console.error('Fetch error:', error);
+          this.importMessage = 'URL import requires a server backend (e.g. Vercel deployment). Please use the "Manual Entry" tab to paste your roster text instead.';
+        } finally {
+          this.fetchingRoster = false;
+        }
         this.render();
       }
 
