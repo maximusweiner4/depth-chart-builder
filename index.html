@@ -24,11 +24,11 @@
     }
 
     body {
-      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       letter-spacing: -0.01em;
     }
     .font-display {
-      font-family: 'Bebas Neue', sans-serif;
+      font-family: 'Bebas Neue', Impact, 'Haettenschweiler', 'Arial Narrow Bold', sans-serif;
       letter-spacing: 0.04em;
     }
 
@@ -273,6 +273,17 @@
     function isValidColor(color) {
       if (!color || typeof color !== 'string') return false;
       return /^#[0-9a-fA-F]{3,8}$/.test(color) || /^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/i.test(color);
+    }
+
+    // Calculate relative luminance of a hex color (WCAG formula)
+    function getLuminance(hex) {
+      hex = hex.replace('#', '');
+      if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+      const r = parseInt(hex.substr(0, 2), 16) / 255;
+      const g = parseInt(hex.substr(2, 2), 16) / 255;
+      const b = parseInt(hex.substr(4, 2), 16) / 255;
+      const toLinear = c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+      return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
     }
 
     // Position definitions
@@ -870,7 +881,8 @@
           depthChart: this.depthChart,
           playerStatuses: this.playerStatuses,
           playerNotes: this.playerNotes,
-          positionBattles: this.positionBattles
+          positionBattles: this.positionBattles,
+          team: this.team
         }));
         if (this.undoStack.length > this.maxUndoSteps) {
           this.undoStack.shift();
@@ -884,13 +896,18 @@
             depthChart: this.depthChart,
             playerStatuses: this.playerStatuses,
             playerNotes: this.playerNotes,
-            positionBattles: this.positionBattles
+            positionBattles: this.positionBattles,
+            team: this.team
           }));
           const state = JSON.parse(this.undoStack.pop());
           this.depthChart = state.depthChart || state;
           if (state.playerStatuses) this.playerStatuses = state.playerStatuses;
           if (state.playerNotes) this.playerNotes = state.playerNotes;
           if (state.positionBattles) this.positionBattles = state.positionBattles;
+          if (state.team) {
+            this.team = state.team;
+            this.saveTeam();
+          }
           this.autoSave();
           this.render();
         }
@@ -902,13 +919,18 @@
             depthChart: this.depthChart,
             playerStatuses: this.playerStatuses,
             playerNotes: this.playerNotes,
-            positionBattles: this.positionBattles
+            positionBattles: this.positionBattles,
+            team: this.team
           }));
           const state = JSON.parse(this.redoStack.pop());
           this.depthChart = state.depthChart || state;
           if (state.playerStatuses) this.playerStatuses = state.playerStatuses;
           if (state.playerNotes) this.playerNotes = state.playerNotes;
           if (state.positionBattles) this.positionBattles = state.positionBattles;
+          if (state.team) {
+            this.team = state.team;
+            this.saveTeam();
+          }
           this.autoSave();
           this.render();
         }
@@ -981,6 +1003,7 @@
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        this.showToast('Depth chart exported successfully');
       }
 
       exportFullBackup() {
@@ -1436,6 +1459,7 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+            this.showToast('Depth chart image downloaded');
           }, 'image/png');
 
         } catch (error) {
@@ -1881,15 +1905,15 @@
           'OG': 'LG',
           'OG-R': 'RG',
           'C': 'C',
-          'DE-1': 'DE',
-          'DE-2': 'DE',
-          'DT-1': 'DT',
-          'DT-2': 'DT',
+          'DE-1': 'DE (L)',
+          'DE-2': 'DE (R)',
+          'DT-1': 'DT (1)',
+          'DT-2': 'DT (2)',
           'NT': 'NT',
           'LB-ILB': 'ILB',
           'LB-OLB': 'OLB',
-          'CB-X': 'CB',
-          'CB-Y': 'CB',
+          'CB-X': 'CB-X',
+          'CB-Y': 'CB-Y',
           'CB-SLOT': 'NCB',
           'S-FS': 'FS',
           'S-SS': 'SS',
@@ -2396,48 +2420,8 @@
           return;
         }
 
-        this.fetchingRoster = true;
-        this.importMessage = '';
+        this.importMessage = 'URL import is not available in the standalone version. Please use the "Paste Roster Text" tab instead.';
         this.render();
-
-        try {
-          const response = await fetch('/api/scrape', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url })
-          });
-
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.error || 'Failed to fetch roster');
-          }
-
-          // Update team info
-          if (data.team) {
-            this.team.name = data.team.name || this.team.name;
-            this.team.primaryColor = data.team.primaryColor || this.team.primaryColor;
-            this.team.rosterUrl = data.team.rosterUrl || url;
-            this.saveTeam();
-          }
-
-          // Update roster
-          if (data.roster && data.roster.length > 0) {
-            this.roster = data.roster;
-            localStorage.setItem('generic-roster', JSON.stringify(this.roster));
-            this.importMessage = `Success! Imported ${data.roster.length} players from ${data.team?.name || 'roster'}`;
-            this.showSetupModal = false;
-          } else {
-            this.importMessage = 'No players found on that page. Try using Manual Entry.';
-          }
-
-        } catch (error) {
-          console.error('Fetch error:', error);
-          this.importMessage = error.message || 'Failed to fetch roster. Try using Manual Entry.';
-        } finally {
-          this.fetchingRoster = false;
-          this.render();
-        }
       }
 
       saveSetup() {
@@ -2450,7 +2434,11 @@
         }
         if (colorInput && colorInput.value.trim()) {
           const color = colorInput.value.trim();
-          if (isValidColor(color)) this.team.primaryColor = color;
+          if (isValidColor(color)) {
+            this.team.primaryColor = color;
+          } else {
+            this.showToast('Invalid color format. Use hex (e.g., #FF0000)');
+          }
         }
         this.saveTeam();
 
@@ -2524,12 +2512,21 @@
       }
 
       saveTeamSettings() {
+        this.saveStateForUndo();
         const nameInput = document.getElementById('settingsTeamName');
         const colorInput = document.getElementById('settingsTeamColorText');
         if (nameInput && nameInput.value.trim()) this.team.name = nameInput.value.trim();
         if (colorInput && colorInput.value.trim()) {
           const color = colorInput.value.trim();
-          if (isValidColor(color)) this.team.primaryColor = color;
+          if (isValidColor(color)) {
+            this.team.primaryColor = color;
+            // Warn if color is very dark (hard to see in dark mode)
+            if (/^#[0-9a-fA-F]{3,8}$/.test(color) && getLuminance(color) < 0.05) {
+              this.showToast('Heads up: Very dark team colors may be hard to see in dark mode.');
+            }
+          } else {
+            this.showToast('Invalid color format. Use hex (e.g., #FF0000)');
+          }
         }
         this.saveTeam();
         this.showTeamSettingsModal = false;
@@ -2641,6 +2638,11 @@
                         <span>${m.message}</span>
                       </div>
                     `).join('')}
+                    ${mismatches.length > 3 ? `
+                      <div class="text-sm text-gray-500 dark:text-gray-400 pl-6">
+                        ...and ${mismatches.length - 3} more warning${mismatches.length - 3 > 1 ? 's' : ''}
+                      </div>
+                    ` : ''}
                   </div>
                 ` : ''}
               </div>
@@ -2987,7 +2989,7 @@
                   <div class="flex items-center gap-2">
                     <div class="w-8 h-8 text-white rounded-full flex items-center justify-center text-xs font-bold relative" style="background: ${this.team.primaryColor};">
                       ${escapeHtml(this.getPlayerInitials(player.name))}
-                      ${status ? `<span class="absolute -top-1 -right-1 px-1 py-0.5 text-[7px] font-bold text-white rounded ${this.getStatusColor(status)}">${escapeHtml(this.getStatusBadge(status))}</span>` : ''}
+                      ${status ? `<span class="absolute -top-1 -right-1 px-1 py-0.5 text-[7px] font-bold text-white rounded ${this.getStatusColor(status)}" title="${escapeHtml(status)}">${escapeHtml(this.getStatusBadge(status))}</span>` : ''}
                     </div>
                     <div class="flex-1 min-w-0">
                       <div class="font-semibold text-gray-900 dark:text-white text-sm flex items-center gap-1 flex-wrap">
@@ -3122,7 +3124,7 @@
                     <div class="flex items-center gap-3 mb-3">
                       <div class="w-12 h-12 text-white rounded-full flex items-center justify-center font-bold text-lg relative" style="background: ${this.team.primaryColor};">
                         ${escapeHtml(this.getPlayerInitials(currentPlayer.name))}
-                        ${this.getPlayerStatus(currentPlayer) ? `<span class="absolute -top-1 -right-1 px-1 text-[8px] font-bold text-white rounded ${this.getStatusColor(this.getPlayerStatus(currentPlayer))}">${escapeHtml(this.getStatusBadge(this.getPlayerStatus(currentPlayer)))}</span>` : ''}
+                        ${this.getPlayerStatus(currentPlayer) ? `<span class="absolute -top-1 -right-1 px-1 text-[8px] font-bold text-white rounded ${this.getStatusColor(this.getPlayerStatus(currentPlayer))}" title="${escapeHtml(this.getPlayerStatus(currentPlayer))}">${escapeHtml(this.getStatusBadge(this.getPlayerStatus(currentPlayer)))}</span>` : ''}
                       </div>
                       <div class="flex-1">
                         <div class="font-bold text-gray-900 dark:text-white">
@@ -3657,7 +3659,9 @@
               }
             }, 0);
           });
-          searchInput.focus();
+          if (this.showPlayerModal) {
+            searchInput.focus();
+          }
         }
       }
     }
