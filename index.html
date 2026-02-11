@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#1a1a2e" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1f2937" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏈</text></svg>">
   <meta name="description" content="Build and customize interactive college football depth charts. Import rosters, assign players, track injuries, and share your depth chart.">
   <meta property="og:title" content="College Football Depth Chart Builder">
   <meta property="og:description" content="Build and customize interactive college football depth charts with real roster data.">
@@ -42,7 +43,7 @@
       height: 100%;
       pointer-events: none;
       opacity: var(--grain-opacity);
-      z-index: 9999;
+      z-index: 1;
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
     }
 
@@ -220,6 +221,12 @@
     }
 
     /* Mobile responsive */
+    @media (max-width: 1024px) {
+      .position-card-inner {
+        min-width: 65px !important;
+        font-size: 10px;
+      }
+    }
     @media (max-width: 768px) {
       .field-container { min-height: auto; padding: 1rem; }
       .position-card-inner {
@@ -715,8 +722,12 @@
         this.render();
 
         setTimeout(() => {
-          // Check for shared depth chart in URL hash
-          if (this.loadFromShareUrl()) {
+          // Check if we just came from "Load into Editor" — skip share URL parsing
+          if (localStorage.getItem('generic-load-into-editor')) {
+            localStorage.removeItem('generic-load-into-editor');
+            // Fall through to normal editor load below
+          } else if (this.loadFromShareUrl()) {
+            // Check for shared depth chart in URL hash
             this.loading = false;
             this.applyTeamColors();
             this.render();
@@ -978,11 +989,19 @@
       }
 
       autoSave() {
-        localStorage.setItem('generic-depth-chart', JSON.stringify(this.depthChart));
-        localStorage.setItem('generic-player-statuses', JSON.stringify(this.playerStatuses));
-        localStorage.setItem('generic-player-notes', JSON.stringify(this.playerNotes));
-        localStorage.setItem('generic-position-battles', JSON.stringify(this.positionBattles));
-        localStorage.setItem('generic-two-deep-view', JSON.stringify(this.twoDeepView));
+        try {
+          localStorage.setItem('generic-depth-chart', JSON.stringify(this.depthChart));
+          localStorage.setItem('generic-player-statuses', JSON.stringify(this.playerStatuses));
+          localStorage.setItem('generic-player-notes', JSON.stringify(this.playerNotes));
+          localStorage.setItem('generic-position-battles', JSON.stringify(this.positionBattles));
+          localStorage.setItem('generic-two-deep-view', JSON.stringify(this.twoDeepView));
+        } catch (e) {
+          console.error('Auto-save failed:', e);
+          if (e.name === 'QuotaExceededError' || e.code === 22) {
+            this.showToast('Storage full. Export a backup to avoid losing changes.');
+          }
+          return;
+        }
         this.lastSaved = new Date();
         // Show save indicator without full re-render
         const saveIndicator = document.getElementById('save-indicator');
@@ -1085,7 +1104,7 @@
                 this.showToast('Invalid backup file. Please use a file exported from this app.');
                 return;
               }
-              this.showConfirmDialog('Import Backup', 'This will replace all current data. Are you sure you want to continue?', () => {
+              this.showConfirmDialog('Import Backup', 'This will replace your current roster, depth chart, and all settings with the backup data. Any unsaved changes will be lost.', () => {
                 const backupKeys = [
                   'generic-depth-chart', 'generic-player-statuses', 'generic-player-notes',
                   'generic-position-battles', 'generic-two-deep-view', 'generic-team-config',
@@ -1143,6 +1162,13 @@
         // Only include optional fields if non-default
         if (Object.keys(st).length > 0) payload.s = st;
         if (this.twoDeepView) payload.v = 1;
+
+        // Include non-empty notes
+        const nt = {};
+        for (const [k, v] of Object.entries(this.playerNotes)) {
+          if (v) nt[k] = v;
+        }
+        if (Object.keys(nt).length > 0) payload.n = nt;
 
         return payload;
       }
@@ -1211,6 +1237,7 @@
             }
             this.depthChart = dc;
             this.playerStatuses = data.s || {};
+            this.playerNotes = data.n || {};
             this.offenseFormation = data.o || 'pro';
             this.defenseFormation = data.f || 'nickel';
             this.twoDeepView = !!data.v;
@@ -1265,9 +1292,11 @@
         localStorage.setItem('depth-chart-defense-formation', this.defenseFormation);
         localStorage.setItem('generic-two-deep-view', JSON.stringify(this.twoDeepView));
 
-        // Clear hash and reload
-        window.location.hash = '';
-        window.location.reload();
+        // Set flag so constructor knows to enter editor mode (avoids hash race)
+        localStorage.setItem('generic-load-into-editor', 'true');
+
+        // Navigate to clean URL (no hash) to reload into editor
+        window.location.href = window.location.origin + window.location.pathname;
       }
 
       dismissShareBanner() {
@@ -1929,17 +1958,19 @@
       }
 
       getPlayerLastName(name) {
+        if (!name) return '?';
         const suffixes = ["Jr.", "Sr.", "II", "III", "IV", "V"];
-        const parts = name.split(" ");
+        const parts = name.trim().split(" ");
         let lastPart = parts.pop();
         if (suffixes.includes(lastPart) && parts.length > 0) {
           lastPart = parts.pop();
         }
-        return lastPart;
+        return lastPart || '?';
       }
 
       getPlayerInitials(name) {
-        return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+        if (!name) return '??';
+        return name.trim().split(' ').filter(n => n).map(n => n[0]).join('').substring(0, 2).toUpperCase() || '??';
       }
 
       // Get display name for a depth chart slot
@@ -2195,6 +2226,18 @@
         const headerHtml = this.renderHeader();
         const contentHtml = `
             ${!this.readOnlyMode ? this.renderButtons() : ''}
+            ${!this.readOnlyMode && this.roster.length === 0 ? `
+              <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 mb-6 text-center border-2 border-dashed" style="border-color: ${this.accentColor}40;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto mb-4" style="color: ${this.accentColor};">
+                  <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+                </svg>
+                <h3 class="font-display text-xl font-bold text-gray-900 dark:text-white mb-2">Import Your Roster to Get Started</h3>
+                <p class="text-gray-500 dark:text-gray-400 mb-4 max-w-md mx-auto">Paste your team's roster URL or enter players manually to start building your depth chart.</p>
+                <button onclick="app.showSetupModal = true; app.render()" class="px-6 py-3 rounded-lg font-display font-semibold transition-colors" style="background: ${this.accentColor}; color: ${this.accentTextColor};">
+                  Import Roster
+                </button>
+              </div>
+            ` : ''}
             ${this.renderTabs()}
             ${this.renderMobileControls()}
             <div class="desktop-only">
@@ -2251,13 +2294,20 @@
         } else {
           // First render — build full structure
           app.innerHTML = `
-            ${this.readOnlyMode && !this._shareBannerDismissed ? `
+            ${this.readOnlyMode ? (this._shareBannerDismissed ? `
+              <div class="fixed bottom-6 right-6 z-40 no-print">
+                <button onclick="app.loadSharedIntoEditor()" class="bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-colors text-sm shadow-lg flex items-center gap-2" title="Load this depth chart into the editor">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  Edit
+                </button>
+              </div>
+            ` : `
               <div class="bg-blue-600 text-white py-3 px-4 text-center text-sm font-semibold flex items-center justify-center gap-3 flex-wrap">
                 <span>You're viewing a shared depth chart.</span>
                 <button onclick="app.loadSharedIntoEditor()" class="bg-white text-blue-600 px-4 py-1.5 rounded-lg font-bold hover:bg-blue-50 transition-colors text-sm">Load into Editor</button>
                 <button onclick="app.dismissShareBanner()" class="text-white/80 hover:text-white underline text-sm">Dismiss</button>
               </div>
-            ` : ''}
+            `) : ''}
             <div class="max-w-7xl mx-auto p-4">
               <div id="header-section">${headerHtml}</div>
               <div id="content-section">${contentHtml}</div>
@@ -2441,7 +2491,7 @@
                       <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Format: #Number Name Position Year (one player per line)</p>
                       <textarea
                         id="setupRosterTextarea"
-                        placeholder="#1 John Smith QB Sr.&#10;#24 Mike Johnson RB Jr.&#10;#7 David Wilson WR So.&#10;…"
+                        placeholder="#1 John Smith QB Sr.${'\n'}#24 Mike Johnson RB Jr.${'\n'}#7 David Wilson WR So.${'\n'}…"
                         class="w-full h-48 p-3 border-2 border-gray-200 dark:border-gray-600 rounded-lg font-mono text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       >${escapeHtml(this.importText)}</textarea>
                     </div>
@@ -2460,13 +2510,13 @@
                   class="flex-1 text-white px-4 py-3 rounded-lg font-display font-semibold transition-colors"
                   style="background: ${this.accentColor};"
                 >
-                  ${importTab === 'url' ? 'Continue' : 'Save & Import'}
+                  Save & Continue
                 </button>
                 <button
                   onclick="app.showSetupModal = false; app.render()"
                   class="px-4 py-3 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
-                  Skip
+                  Skip for Now
                 </button>
               </div>
             </div>
@@ -2503,11 +2553,15 @@
         this.render();
 
         try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 15000);
           const response = await fetch('/api/scrape', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url })
+            body: JSON.stringify({ url }),
+            signal: controller.signal
           });
+          clearTimeout(timeout);
 
           const data = await response.json();
 
@@ -2537,9 +2591,13 @@
 
         } catch (error) {
           console.error('Fetch error:', error);
-          this.importMessage = error.message === 'Failed to fetch'
-            ? 'Could not connect to the server. Please check your internet connection and try again, or use "Manual Entry" instead.'
-            : `Import failed: ${error.message}. Try a different URL or use "Manual Entry" instead.`;
+          if (error.name === 'AbortError') {
+            this.importMessage = 'Request timed out. The roster page may be too slow or unavailable. Try "Manual Entry" instead.';
+          } else if (error.message === 'Failed to fetch') {
+            this.importMessage = 'Could not connect to the server. Please check your internet connection and try again, or use "Manual Entry" instead.';
+          } else {
+            this.importMessage = `Import failed: ${error.message}. Try a different URL or use "Manual Entry" instead.`;
+          }
         } finally {
           this.fetchingRoster = false;
         }
@@ -2672,7 +2730,7 @@
                   <span>${escapeHtml(this.team.name.split(' ').map(w => w[0]).join('').substring(0, 3))}</span>
                 </div>
                 <div>
-                  <h1 class="font-display text-4xl font-bold mb-1" style="letter-spacing: 0.05em;">${escapeHtml(this.team.name.toUpperCase())}</h1>
+                  <h1 class="font-display text-4xl font-bold mb-1 uppercase" style="letter-spacing: 0.05em;">${escapeHtml(this.team.name)}</h1>
                   <p class="text-gray-500 dark:text-gray-400 font-medium text-sm uppercase tracking-wider">${this.readOnlyMode ? 'Shared Depth Chart' : 'Interactive Depth Chart Builder'}</p>
                 </div>
               </div>
@@ -2696,7 +2754,7 @@
                       <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
                     </svg>
                   ` : `
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-gray-600">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-indigo-500">
                       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
                     </svg>
                   `}
@@ -3051,7 +3109,7 @@
               ` : ''}
               <div class="px-2 py-1 ${player ? 'border-b border-white/30' : 'border-b-2'} text-center flex items-center justify-center gap-1" style="${!player ? `border-color: ${this.accentColor};` : ''}">
                 <div class="text-xs font-display font-bold tracking-wide">${pos.name}</div>
-                ${isBattle ? `<span class="text-[9px] bg-yellow-400 text-yellow-900 px-1 rounded font-bold">OR</span>` : ''}
+                ${isBattle ? `<span class="text-[9px] bg-yellow-400 text-yellow-900 px-1 rounded font-bold" title="Position battle (undecided)">OR</span>` : ''}
               </div>
               ${player ? `
                 <div class="px-2 py-2 text-center relative">
@@ -3227,7 +3285,7 @@
                 </div>
               </div>
 
-              <div class="p-4 overflow-y-auto flex-1">
+              <div id="playerListContainer" class="p-4 overflow-y-auto flex-1">
                 <!-- Position Battle Toggle -->
                 <div class="mb-4 flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border dark:border-gray-600">
                   <div>
@@ -3298,33 +3356,40 @@
                   </div>
                 ` : ''}
 
-                ${availablePlayers.length === 0 ? this.renderEmptyPlayerState(position) : `
-                  <div class="space-y-2">
-                    ${availablePlayers.map((player, i) => `
-                      <button
-                        onclick="app.addPlayer('${position}', ${depth}, ${safeJsonAttr({name: player.name, number: player.number, position: player.position, year: player.year, height: player.height, weight: player.weight, hometown: player.hometown, highSchool: player.highSchool, previousSchool: player.previousSchool, url: player.url})})"
-                        class="w-full text-left ${player.isAssigned ? 'bg-gray-100 dark:bg-gray-800 opacity-60' : 'bg-gray-50 dark:bg-gray-700'} hover:bg-gray-100 dark:hover:bg-gray-600 hover:opacity-100 border border-gray-200 dark:border-gray-600 rounded-lg p-3 transition-all"
-                      >
-                        <div class="flex items-center gap-3">
-                          <div class="w-10 h-10 ${player.isAssigned ? 'bg-gray-300 dark:bg-gray-700' : 'bg-gray-200 dark:bg-gray-600'} rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 text-sm font-semibold">
-                            ${escapeHtml(this.getPlayerInitials(player.name))}
-                          </div>
-                          <div class="flex-1">
-                            <div class="font-semibold ${player.isAssigned ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white'}">#${escapeHtml(player.number)} ${escapeHtml(player.name)}</div>
-                            <div class="text-sm text-gray-500 dark:text-gray-400">${escapeHtml(player.position)} • ${escapeHtml(player.year)}${player.height ? ` • ${escapeHtml(player.height)}` : ''}${player.weight ? ` • ${escapeHtml(player.weight)}` : ''}</div>
-                            ${player.isAssigned ? `<div class="text-xs text-amber-600 dark:text-amber-400 mt-1">Currently: ${escapeHtml(player.assignments.map(a => this.getSlotDisplayName(a.position) + ' #' + (a.depth + 1)).join(', '))}</div>` : ''}
-                            ${!player.isAssigned && player.hometown ? `<div class="text-xs text-gray-400 dark:text-gray-500">${escapeHtml(player.hometown)}${player.previousSchool ? ` (${escapeHtml(player.previousSchool)})` : ''}</div>` : ''}
-                          </div>
-                          ${player.url ? `<a href="${safeUrl(player.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" class="p-1 text-gray-400 hover:text-gray-600" title="View profile">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                          </a>` : ''}
-                        </div>
-                      </button>
-                    `).join('')}
-                  </div>
-                `}
+                <div id="playerSearchResults">
+                  ${this.renderPlayerListContent(position, depth, availablePlayers, currentPlayer)}
+                </div>
               </div>
             </div>
+          </div>
+        `;
+      }
+
+      renderPlayerListContent(position, depth, availablePlayers, currentPlayer) {
+        if (availablePlayers.length === 0) return this.renderEmptyPlayerState(position);
+        return `
+          <div class="space-y-2">
+            ${availablePlayers.map((player, i) => `
+              <button
+                onclick="app.addPlayer('${position}', ${depth}, ${safeJsonAttr({name: player.name, number: player.number, position: player.position, year: player.year, height: player.height, weight: player.weight, hometown: player.hometown, highSchool: player.highSchool, previousSchool: player.previousSchool, url: player.url})})"
+                class="w-full text-left ${player.isAssigned ? 'bg-gray-100 dark:bg-gray-800 opacity-60' : 'bg-gray-50 dark:bg-gray-700'} hover:bg-gray-100 dark:hover:bg-gray-600 hover:opacity-100 border border-gray-200 dark:border-gray-600 rounded-lg p-3 transition-all"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 ${player.isAssigned ? 'bg-gray-300 dark:bg-gray-700' : 'bg-gray-200 dark:bg-gray-600'} rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 text-sm font-semibold">
+                    ${escapeHtml(this.getPlayerInitials(player.name))}
+                  </div>
+                  <div class="flex-1">
+                    <div class="font-semibold ${player.isAssigned ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white'}">#${escapeHtml(player.number)} ${escapeHtml(player.name)}</div>
+                    <div class="text-sm text-gray-500 dark:text-gray-400">${escapeHtml(player.position)} • ${escapeHtml(player.year)}${player.height ? ` • ${escapeHtml(player.height)}` : ''}${player.weight ? ` • ${escapeHtml(player.weight)}` : ''}</div>
+                    ${player.isAssigned ? `<div class="text-xs text-amber-600 dark:text-amber-400 mt-1">Currently: ${escapeHtml(player.assignments.map(a => this.getSlotDisplayName(a.position) + ' #' + (a.depth + 1)).join(', '))}</div>` : ''}
+                    ${!player.isAssigned && player.hometown ? `<div class="text-xs text-gray-400 dark:text-gray-500">${escapeHtml(player.hometown)}${player.previousSchool ? ` (${escapeHtml(player.previousSchool)})` : ''}</div>` : ''}
+                  </div>
+                  ${player.url ? `<a href="${safeUrl(player.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" class="p-1 text-gray-400 hover:text-gray-600" title="View profile">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  </a>` : ''}
+                </div>
+              </button>
+            `).join('')}
           </div>
         `;
       }
@@ -3761,16 +3826,15 @@
         const searchInput = document.getElementById('playerSearch');
         if (searchInput) {
           searchInput.addEventListener('input', (e) => {
-            const cursorPos = e.target.selectionStart;
             this.searchQuery = e.target.value;
-            this.render();
-            setTimeout(() => {
-              const newInput = document.getElementById('playerSearch');
-              if (newInput) {
-                newInput.focus();
-                newInput.setSelectionRange(cursorPos, cursorPos);
-              }
-            }, 0);
+            // Targeted update: only re-render the player list, not the entire app
+            const resultsContainer = document.getElementById('playerSearchResults');
+            if (resultsContainer && this.selectedSlot) {
+              const { position, depth } = this.selectedSlot;
+              const availablePlayers = this.getAvailablePlayers(position);
+              const currentPlayer = this.depthChart[position]?.[depth];
+              resultsContainer.innerHTML = this.renderPlayerListContent(position, depth, availablePlayers, currentPlayer);
+            }
           });
           if (this.showPlayerModal) {
             searchInput.focus();
