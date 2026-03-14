@@ -1020,6 +1020,11 @@
       }
 
       exportDepthChart() {
+        const hasPlayers = Object.values(this.depthChart).some(slots => slots?.some(p => p !== null));
+        if (!hasPlayers) {
+          this.showToast('Depth chart is empty — assign players first.');
+          return;
+        }
         let text = `${this.team.name.toUpperCase()} FOOTBALL DEPTH CHART\n${'='.repeat(this.team.name.length + 21)}\n`;
         text += `Generated: ${new Date().toLocaleDateString()}\n\n`;
 
@@ -1236,8 +1241,8 @@
               }
             }
             this.depthChart = dc;
-            this.playerStatuses = data.s || {};
-            this.playerNotes = data.n || {};
+            this.playerStatuses = (data.s && typeof data.s === 'object' && !Array.isArray(data.s)) ? data.s : {};
+            this.playerNotes = (data.n && typeof data.n === 'object' && !Array.isArray(data.n)) ? data.n : {};
             this.offenseFormation = data.o || 'pro';
             this.defenseFormation = data.f || 'nickel';
             this.twoDeepView = !!data.v;
@@ -1821,6 +1826,8 @@
           this.depthChart[toPosition][toDepth] = player;
           this.depthChart[fromPosition][fromDepth] = targetPlayer || null;
           this.autoSave();
+        } else {
+          this.showToast('Cannot move player between different position groups.');
         }
 
         this.draggedPlayer = null;
@@ -1928,6 +1935,15 @@
 
       // Change formation and reinitialize positions
       changeFormation(type, formation) {
+        const currentPositions = this.getPositions(type);
+        const hasAssignments = currentPositions.some(pos => {
+          const key = pos.isRight ? `${pos.code}-R` : pos.code;
+          return this.depthChart[key]?.some(p => p !== null);
+        });
+        if (hasAssignments && !confirm('Changing formations may clear some player assignments. Continue?')) {
+          return;
+        }
+        this.saveStateForUndo();
         if (type === "offense") {
           this.offenseFormation = formation;
           localStorage.setItem("depth-chart-offense-formation", formation);
@@ -2593,8 +2609,8 @@
           console.error('Fetch error:', error);
           if (error.name === 'AbortError') {
             this.importMessage = 'Request timed out. The roster page may be too slow or unavailable. Try "Manual Entry" instead.';
-          } else if (error.message === 'Failed to fetch') {
-            this.importMessage = 'Could not connect to the server. Please check your internet connection and try again, or use "Manual Entry" instead.';
+          } else if (error.message === 'Failed to fetch' || error.message?.includes('fetch')) {
+            this.importMessage = 'URL import requires a backend server which isn\'t running in this environment. Use "Manual Entry" to paste your roster instead.';
           } else {
             this.importMessage = `Import failed: ${error.message}. Try a different URL or use "Manual Entry" instead.`;
           }
