@@ -1,6 +1,9 @@
 {
   "outputDirectory": ".",
   "buildCommand": "npm run build:css",
+  "functions": {
+    "api/scrape.js": { "maxDuration": 60 }
+  },
   "headers": [
     {
       "source": "/(.*)",

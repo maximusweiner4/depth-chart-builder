@@ -12,7 +12,9 @@
     "build": "npm run build:css"
   },
   "dependencies": {
-    "cheerio": "^1.0.0-rc.12"
+    "@sparticuz/chromium-min": "121.0.0",
+    "cheerio": "^1.0.0-rc.12",
+    "puppeteer-core": "21.9.0"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.19"
