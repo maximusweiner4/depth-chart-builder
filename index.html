@@ -1215,10 +1215,13 @@
           return false;
         }
 
+        if (compressed.length > 512000) { console.warn('Share URL too large'); return false; }
         try {
-          const json = LZString.decompressFromEncodedURIComponent(compressed);
-          if (!json) return false;
-          const data = JSON.parse(json);
+          let json;
+          try { json = LZString.decompressFromEncodedURIComponent(compressed); } catch { return false; }
+          if (!json || json.length > 2000000) { console.warn('Share URL decompressed too large or failed'); return false; }
+          let data;
+          try { data = JSON.parse(json); } catch { return false; }
 
           this.readOnlyMode = true;
 
@@ -1317,7 +1320,7 @@
         this.toastTimeout = setTimeout(() => {
           this.toastMessage = '';
           this.render();
-        }, 3000);
+        }, 5000);
       }
 
       showConfirmDialog(title, message, onConfirm) {
@@ -1538,6 +1541,7 @@
 
           // Convert to blob and download
           canvas.toBlob((blob) => {
+            if (!blob) { this.showToast('Failed to generate image. Please try again.'); return; }
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -1647,7 +1651,8 @@
             this.roster = newRoster;
             localStorage.setItem('generic-roster', JSON.stringify(newRoster));
             this.importMessage = `Successfully imported ${newRoster.length} players!`;
-            setTimeout(() => {
+            if (this._importTimeout) clearTimeout(this._importTimeout);
+            this._importTimeout = setTimeout(() => {
               this.showImportModal = false;
               this.showSetupModal = false;
               this.importText = '';
@@ -1660,6 +1665,8 @@
           this.render();
         } catch (error) {
           this.importMessage = 'Error parsing roster data. Please check the format.';
+          this.showImportModal = false;
+          this.showSetupModal = false;
           this.render();
         }
       }
@@ -1941,7 +1948,7 @@
           const key = pos.isRight ? `${pos.code}-R` : pos.code;
           return this.depthChart[key]?.some(p => p !== null);
         });
-        if (hasAssignments && !confirm('Changing formations may clear some player assignments. Continue?')) {
+        if (hasAssignments && !confirm('Changing formations will remove players from positions that don\'t exist in the new formation. Players remain in your roster — only their depth chart slots will be cleared. Continue?')) {
           return;
         }
         this.saveStateForUndo();
@@ -2217,6 +2224,10 @@
         if (!this.depthChart[slotKey]) {
           this.depthChart[slotKey] = [];
         }
+        // Ensure array is dense up to depthIndex so no sparse gaps
+        while (this.depthChart[slotKey].length < depthIndex) {
+          this.depthChart[slotKey].push(null);
+        }
         this.depthChart[slotKey][depthIndex] = player;
         this.autoSave();
         this.render();
@@ -2392,14 +2403,21 @@
                   </div>
                 </div>
               </div>
-              <div class="p-4 border-t dark:border-gray-700">
+              <div class="p-4 border-t dark:border-gray-700 flex flex-col items-center gap-2">
                 <button onclick="app.dismissOnboarding()" class="w-full py-3 rounded-lg font-display font-semibold text-lg transition-colors" style="background: ${this.accentColor}; color: ${this.accentTextColor};">
                   Get Started
                 </button>
+                <button onclick="app.skipOnboarding()" class="text-sm text-gray-400 hover:text-gray-600 underline mt-2">Skip tutorial</button>
               </div>
             </div>
           </div>
         `;
+      }
+
+      skipOnboarding() {
+        this.showOnboarding = false;
+        localStorage.setItem('generic-onboarding-seen', 'true');
+        this.render();
       }
 
       renderSetupModal() {
@@ -3105,8 +3123,11 @@
               style="min-width: 80px; ${player ? `background: ${this.accentColor}; color: ${this.accentTextColor};` : `border-color: ${this.accentColor};`}"
               data-tooltip="${escapeHtml(pos.fullName)}${status ? ' [' + escapeHtml(status) + ']' : ''}${note ? ' - ' + escapeHtml(note) : ''}"
               data-drop="${posKey}-${this.twoDeepView ? 0 : this.depthLevel}"
+              data-drop-position="${posKey}"
+              data-drop-depth="${this.twoDeepView ? 0 : this.depthLevel}"
               ${!this.readOnlyMode ? `onclick="app.selectedSlot = { position: '${posKey}', depth: ${this.twoDeepView ? 0 : this.depthLevel} }; app.showPlayerModal = true; app.render()"` : ''}
               draggable="${!this.readOnlyMode && player ? 'true' : 'false'}"
+              ${player && !this.readOnlyMode ? `data-player="${safeJsonAttr(player).replace(/"/g, '&quot;')}" data-from-position="${posKey}" data-from-depth="${this.twoDeepView ? 0 : this.depthLevel}"` : ''}
               ${!this.readOnlyMode ? `
               ondragstart="app.handleDragStart(${player ? safeJsonAttr(player) : 'null'}, '${posKey}', ${this.twoDeepView ? 0 : this.depthLevel})"
               ondragover="app.handleDragOver('${posKey}', ${this.twoDeepView ? 0 : this.depthLevel}, event)"
@@ -3302,7 +3323,7 @@
                 </div>
               </div>
 
-              <div id="playerListContainer" class="p-4 overflow-y-auto flex-1">
+              <div id="playerListContainer" class="p-4 overflow-y-auto flex-1 max-h-80">
                 <!-- Position Battle Toggle -->
                 <div class="mb-4 flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border dark:border-gray-600">
                   <div>
@@ -3395,8 +3416,8 @@
                   <div class="w-10 h-10 ${player.isAssigned ? 'bg-gray-300 dark:bg-gray-700' : 'bg-gray-200 dark:bg-gray-600'} rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 text-sm font-semibold">
                     ${escapeHtml(this.getPlayerInitials(player.name))}
                   </div>
-                  <div class="flex-1">
-                    <div class="font-semibold ${player.isAssigned ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white'}">#${escapeHtml(player.number)} ${escapeHtml(player.name)}</div>
+                  <div class="flex-1 min-w-0">
+                    <div class="font-semibold truncate max-w-full ${player.isAssigned ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white'}">#${escapeHtml(player.number)} ${escapeHtml(player.name)}</div>
                     <div class="text-sm text-gray-500 dark:text-gray-400">${escapeHtml(player.position)} • ${escapeHtml(player.year)}${player.height ? ` • ${escapeHtml(player.height)}` : ''}${player.weight ? ` • ${escapeHtml(player.weight)}` : ''}</div>
                     ${player.isAssigned ? `<div class="text-xs text-amber-600 dark:text-amber-400 mt-1">Currently: ${escapeHtml(player.assignments.map(a => this.getSlotDisplayName(a.position) + ' #' + (a.depth + 1)).join(', '))}</div>` : ''}
                     ${!player.isAssigned && player.hometown ? `<div class="text-xs text-gray-400 dark:text-gray-500">${escapeHtml(player.hometown)}${player.previousSchool ? ` (${escapeHtml(player.previousSchool)})` : ''}</div>` : ''}
@@ -3809,6 +3830,11 @@
       }
 
       attachEventListeners() {
+        // Touch drag-and-drop must re-run each render to pick up new draggable elements
+        this._setupTouchDragDrop();
+        // All other listeners are only attached once
+        if (this._listenersAttached) return;
+        this._listenersAttached = true;
         // Swipe gesture listeners for mobile tab switching
         const mobileListView = document.querySelector('.mobile-list-view');
         if (mobileListView) {
@@ -3857,6 +3883,83 @@
             searchInput.focus();
           }
         }
+      }
+
+      _setupTouchDragDrop() {
+        // Remove old touch listeners if re-attaching
+        if (this._touchMoveHandler) {
+          document.removeEventListener('touchmove', this._touchMoveHandler);
+          document.removeEventListener('touchend', this._touchEndHandler);
+        }
+
+        let dragEl = null;
+        let clone = null;
+        let startX = 0, startY = 0;
+        let targetSlot = null;
+
+        const onTouchStart = (e) => {
+          const el = e.target.closest('[draggable="true"]');
+          if (!el) return;
+          const playerData = el.dataset.player;
+          if (!playerData) return;
+          let player;
+          try { player = JSON.parse(playerData); } catch { return; }
+          const fromPosition = el.dataset.fromPosition || null;
+          const fromDepth = el.dataset.fromDepth !== undefined ? parseInt(el.dataset.fromDepth) : null;
+          this.draggedPlayer = { player, fromPosition, fromDepth };
+          dragEl = el;
+          const touch = e.touches[0];
+          startX = touch.clientX;
+          startY = touch.clientY;
+          const rect = el.getBoundingClientRect();
+          clone = el.cloneNode(true);
+          clone.style.cssText = `position:fixed;top:${rect.top}px;left:${rect.left}px;width:${rect.width}px;opacity:0.7;pointer-events:none;z-index:9999;`;
+          document.body.appendChild(clone);
+          el.style.opacity = '0.3';
+          e.preventDefault();
+        };
+
+        this._touchMoveHandler = (e) => {
+          if (!dragEl || !clone) return;
+          const touch = e.touches[0];
+          const dx = touch.clientX - startX;
+          const dy = touch.clientY - startY;
+          const rect = dragEl.getBoundingClientRect();
+          clone.style.top = `${rect.top + dy}px`;
+          clone.style.left = `${rect.left + dx}px`;
+          // Highlight drop target
+          clone.style.display = 'none';
+          const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+          clone.style.display = '';
+          const dropTarget = elementBelow?.closest('[data-drop-position]');
+          if (targetSlot) targetSlot.style.outline = '';
+          targetSlot = dropTarget || null;
+          if (targetSlot) targetSlot.style.outline = '2px solid #3b82f6';
+          e.preventDefault();
+        };
+
+        this._touchEndHandler = (e) => {
+          if (!dragEl) return;
+          dragEl.style.opacity = '';
+          if (clone) { clone.remove(); clone = null; }
+          if (targetSlot) {
+            targetSlot.style.outline = '';
+            const pos = targetSlot.dataset.dropPosition;
+            const depth = parseInt(targetSlot.dataset.dropDepth || '0');
+            if (pos !== undefined) this.handleDrop(pos, depth);
+          }
+          dragEl = null;
+          targetSlot = null;
+          this.draggedPlayer = null;
+        };
+
+        document.addEventListener('touchmove', this._touchMoveHandler, { passive: false });
+        document.addEventListener('touchend', this._touchEndHandler);
+
+        // Attach touchstart to draggable elements
+        document.querySelectorAll('[draggable="true"]').forEach(el => {
+          el.addEventListener('touchstart', onTouchStart, { passive: false });
+        });
       }
     }
 
