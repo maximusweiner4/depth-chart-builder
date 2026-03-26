@@ -1,9 +1,12 @@
 import * as cheerio from 'cheerio';
 
-// Simple in-memory rate limiter (resets per cold start)
+// NOTE: Rate limiter uses in-memory Map — resets per cold start.
+// On Vercel's multi-instance deployment each instance has its own Map, so the
+// effective limit is RATE_LIMIT_MAX × N instances. This is a best-effort
+// defence; for hard rate limiting use an external store (e.g. Upstash Redis).
 const rateLimitMap = new Map();
-const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_MAX = 10; // max 10 requests per minute per IP
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 10;
 
 function isRateLimited(ip) {
   const now = Date.now();
@@ -18,6 +21,8 @@ function isRateLimited(ip) {
 
 // SSRF protection: validate URL is a safe external target
 function validateUrl(urlString) {
+  if (typeof urlString !== 'string') return { valid: false, reason: 'URL must be a string' };
+
   let parsed;
   try {
     parsed = new URL(urlString);
@@ -32,12 +37,41 @@ function validateUrl(urlString) {
 
   const hostname = parsed.hostname.toLowerCase();
 
-  // Block localhost and loopback
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '0.0.0.0') {
+  // Block localhost and loopback (IPv4 and IPv6)
+  if (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '0.0.0.0' ||
+    hostname === '::1' ||
+    hostname === '0:0:0:0:0:0:0:1' ||
+    hostname === '[::1]'
+  ) {
     return { valid: false, reason: 'Localhost URLs are not allowed' };
   }
 
-  // Block private/reserved IP ranges
+  // Block IPv6 link-local, ULA, and multicast ranges
+  if (
+    hostname.startsWith('fe80:') ||
+    hostname.startsWith('fc00:') ||
+    hostname.startsWith('fd') ||
+    hostname.startsWith('ff') ||
+    hostname.startsWith('[fe80:') ||
+    hostname.startsWith('[fc00:') ||
+    hostname.startsWith('[fd') ||
+    hostname.startsWith('[ff')
+  ) {
+    return { valid: false, reason: 'IPv6 link-local/ULA addresses are not allowed' };
+  }
+
+  // Block IPv4-mapped IPv6 addresses (::ffff:192.168.x.x etc.)
+  const ipv4MappedMatch = hostname.replace(/^\[|\]$/g, '').match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/i);
+  if (ipv4MappedMatch) {
+    const ipv4 = ipv4MappedMatch[1];
+    const check = validateUrl(`http://${ipv4}`);
+    if (!check.valid) return { valid: false, reason: 'IPv4-mapped IPv6 address not allowed' };
+  }
+
+  // Block private/reserved IPv4 ranges
   const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (ipv4Match) {
     const [, a, b] = ipv4Match.map(Number);
@@ -46,6 +80,7 @@ function validateUrl(urlString) {
     if (a === 192 && b === 168) return { valid: false, reason: 'Private IP addresses are not allowed' };
     if (a === 169 && b === 254) return { valid: false, reason: 'Link-local addresses are not allowed' };
     if (a === 0) return { valid: false, reason: 'Reserved IP addresses are not allowed' };
+    if (a === 127) return { valid: false, reason: 'Loopback addresses are not allowed' };
   }
 
   // Block common internal hostnames
@@ -59,39 +94,51 @@ function validateUrl(urlString) {
 
 // Normalize theme-color to hex format
 function normalizeColor(color) {
-  if (!color) return null;
+  if (!color || typeof color !== 'string') return null;
   const trimmed = color.trim();
+  if (trimmed.length > 50) return null; // Guard against huge input
 
-  // Already hex
   if (/^#[0-9a-fA-F]{3,6}$/.test(trimmed)) return trimmed;
 
-  // rgb(r, g, b) format
   const rgbMatch = trimmed.match(/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i);
   if (rgbMatch) {
     const [, r, g, b] = rgbMatch;
     return `#${Number(r).toString(16).padStart(2, '0')}${Number(g).toString(16).padStart(2, '0')}${Number(b).toString(16).padStart(2, '0')}`;
   }
 
-  return null; // Unrecognized format, ignore
+  return null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Method 1: __NUXT_DATA__ extraction (Sidearm/Nuxt platform — most D1 schools)
 // ─────────────────────────────────────────────────────────────────────────────
 
+const NUXT_MAX_ARRAY = 2000;
+const NUXT_MAX_KEYS = 200;
+
+// DFS resolver — mutates `seen` in-place (add before recurse, delete after).
+// This avoids the O(n) Set copy on every call while still detecting cycles.
 function resolveNuxt(arr, v, depth, seen) {
-  if (depth > 8 || !Number.isInteger(v) || seen.has(v)) return v;
-  seen = new Set(seen);
+  if (depth > 8 || !Number.isInteger(v) || v < 0 || v >= arr.length) return v;
+  if (seen.has(v)) return v; // cycle
   seen.add(v);
   const val = arr[v];
-  if (Array.isArray(val)) return val.map(x => resolveNuxt(arr, x, depth + 1, seen));
-  if (val && typeof val === 'object')
-    return Object.fromEntries(Object.entries(val).map(([k, x]) => [k, resolveNuxt(arr, x, depth + 1, seen)]));
-  return val;
+  let result;
+  if (Array.isArray(val)) {
+    const items = val.length > NUXT_MAX_ARRAY ? val.slice(0, NUXT_MAX_ARRAY) : val;
+    result = items.map(x => resolveNuxt(arr, x, depth + 1, seen));
+  } else if (val && typeof val === 'object') {
+    const keys = Object.keys(val);
+    const limited = keys.length > NUXT_MAX_KEYS ? keys.slice(0, NUXT_MAX_KEYS) : keys;
+    result = Object.fromEntries(limited.map(k => [k, resolveNuxt(arr, val[k], depth + 1, seen)]));
+  } else {
+    result = val;
+  }
+  seen.delete(v); // allow revisit via different path
+  return result;
 }
 
 function extractFromNuxtData(html) {
-  // Use regex on raw HTML — cheerio can mangle JSON inside script tags
   const match = html.match(/<script[^>]+id="__NUXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
   if (!match) return [];
 
@@ -102,9 +149,8 @@ function extractFromNuxtData(html) {
     return [];
   }
 
-  if (!Array.isArray(arr)) return [];
+  if (!Array.isArray(arr) || arr.length > 100000) return [];
 
-  // Find the dict containing a key like "roster-N-players-list-page-1"
   const keyDict = arr.find(x =>
     x && typeof x === 'object' && !Array.isArray(x) &&
     Object.keys(x).some(k => k.startsWith('roster-') && k.includes('players-list'))
@@ -125,7 +171,6 @@ function extractFromNuxtData(html) {
       const last = player.last_name || '';
       const name = `${first} ${last}`.trim();
       if (!name) return null;
-      // jersey_number is top-level on the entry, NOT in the nested player sub-object
       const number = p.jersey_number || 0;
       const hFt = p.height_feet || player.height_feet || '';
       const hIn = p.height_inches || player.height_inches || '';
@@ -153,7 +198,6 @@ function extractFromHtml(html, baseUrl) {
   const $ = cheerio.load(html);
   const players = [];
 
-  // Method 2: HTML table
   const tables = $('table');
   tables.each((tableIdx, table) => {
     if (players.length > 0) return;
@@ -234,8 +278,9 @@ function extractFromHtml(html, baseUrl) {
 
       if (!name) {
         for (let c = 0; c < cells.length; c++) {
-          const cellText = cells.eq(c).text().trim().split('\n')[0].trim()
-            .replace(/\s*(Twitter|Instagram|Facebook|Opens in|X Opens|Inflcr).*$/i, '').trim();
+          const rawText = cells.eq(c).text().trim().split('\n')[0].trim();
+          if (rawText.length > 100) continue; // Skip obviously-bad cells early (also guards against ReDoS)
+          const cellText = rawText.replace(/\s*(Twitter|Instagram|Facebook|Opens in|X Opens|Inflcr).*$/i, '').trim();
           if (cellText && cellText.includes(' ') &&
               !/^\d+$/.test(cellText) &&
               !/^(QB|RB|WR|TE|OL|DL|LB|CB|S|K|P|LS|DE|DT|OT|OG|C|FB|ATH|DB|NT|Fr|So|Jr|Sr|Gr|Freshman|Sophomore|Junior|Senior|Graduate|Redshirt)\.?$/i.test(cellText) &&
@@ -261,7 +306,7 @@ function extractFromHtml(html, baseUrl) {
       for (let c = 0; c < cells.length; c++) {
         if (c === nameIdx) continue;
         const cellText = cells.eq(c).text().trim();
-        if (/^(QB|RB|WR|TE|OL|DL|LB|CB|S|K|P|LS|DE|DT|OT|OG|C|FB|ATH|DB|NT|ILB|OLB|FS|SS|WDE|SDE|MLB)$/i.test(cellText)) {
+        if (cellText.length <= 6 && /^(QB|RB|WR|TE|OL|DL|LB|CB|S|K|P|LS|DE|DT|OT|OG|C|FB|ATH|DB|NT|ILB|OLB|FS|SS|WDE|SDE|MLB)$/i.test(cellText)) {
           position = cellText; break;
         }
       }
@@ -270,8 +315,9 @@ function extractFromHtml(html, baseUrl) {
       for (let c = 0; c < cells.length; c++) {
         if (c === nameIdx) continue;
         const cellText = cells.eq(c).text().trim();
-        if (/^(Fr|So|Jr|Sr|Gr|Freshman|Sophomore|Junior|Senior|Graduate|Redshirt|R-Fr|R-So|R-Jr|R-Sr|RS|RED|SOP|JUN|SEN|FRE)\.?$/i.test(cellText) ||
-            /^(Redshirt\s+)?(Freshman|Sophomore|Junior|Senior)$/i.test(cellText)) {
+        if (cellText.length <= 20 && (
+            /^(Fr|So|Jr|Sr|Gr|Freshman|Sophomore|Junior|Senior|Graduate|Redshirt|R-Fr|R-So|R-Jr|R-Sr|RS|RED|SOP|JUN|SEN|FRE)\.?$/i.test(cellText) ||
+            /^(Redshirt\s+)?(Freshman|Sophomore|Junior|Senior)$/i.test(cellText))) {
           year = cellText; break;
         }
       }
@@ -322,7 +368,6 @@ function extractFromHtml(html, baseUrl) {
     });
   });
 
-  // Method 3: Card/grid layout
   if (players.length === 0) {
     const playerCards = $('.s-person-card, .roster-player, .player-card, [class*="roster"] [class*="player"]');
     playerCards.each((i, card) => {
@@ -370,7 +415,10 @@ async function extractWithPuppeteer(url) {
   try {
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
-    await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
+    // Use domcontentloaded + 20s timeout.
+    // networkidle0 hangs indefinitely on pages with analytics pings.
+    // 20s leaves a 40s buffer before Vercel's 60s maxDuration.
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
     return await page.content();
   } finally {
     await browser.close();
@@ -381,8 +429,10 @@ async function extractWithPuppeteer(url) {
 // Main handler
 // ─────────────────────────────────────────────────────────────────────────────
 
+const MAX_RESPONSE_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_URL_LENGTH = 2048;
+
 export default async function handler(req, res) {
-  // Restrict CORS to same origin (adjust if you have a custom domain)
   const allowedOrigins = [
     'https://depth-chart-builder.vercel.app',
     'http://localhost:3000',
@@ -403,16 +453,25 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Rate limiting
+  // Rate limiting — Vercel sets x-forwarded-for reliably from its edge layer
   const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
   if (isRateLimited(clientIp)) {
     return res.status(429).json({ error: 'Too many requests. Please wait a minute before trying again.' });
   }
 
+  // Validate request body
+  if (!req.body || typeof req.body !== 'object') {
+    return res.status(400).json({ error: 'Request body must be JSON' });
+  }
+
   const { url } = req.body;
 
-  if (!url) {
+  if (!url || typeof url !== 'string') {
     return res.status(400).json({ error: 'URL is required' });
+  }
+
+  if (url.length > MAX_URL_LENGTH) {
+    return res.status(400).json({ error: `URL must be under ${MAX_URL_LENGTH} characters` });
   }
 
   // Validate URL to prevent SSRF
@@ -424,7 +483,7 @@ export default async function handler(req, res) {
   try {
     console.log(`Fetching roster from: ${url}`);
 
-    // Fetch the page HTML
+    // Fetch the page HTML — manual redirect so we can validate the final destination
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -432,14 +491,31 @@ export default async function handler(req, res) {
         'Accept-Language': 'en-US,en;q=0.5',
       },
       redirect: 'follow',
-      signal: AbortSignal.timeout(15000), // 15s for static fetch
+      signal: AbortSignal.timeout(15000),
     });
 
+    // Validate the final URL after redirects to block redirect-chain SSRF
+    if (response.url && response.url !== url) {
+      const finalCheck = validateUrl(response.url);
+      if (!finalCheck.valid) {
+        return res.status(400).json({ error: 'URL redirected to a disallowed destination' });
+      }
+    }
+
     if (!response.ok) {
-      throw new Error(`Failed to fetch page: ${response.status}`);
+      return res.status(400).json({ error: `Could not fetch that page (HTTP ${response.status}). Check the URL and try again.` });
+    }
+
+    // Guard against huge responses (e.g. 100MB HTML pages)
+    const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
+    if (contentLength > MAX_RESPONSE_BYTES) {
+      return res.status(400).json({ error: 'The page is too large to process.' });
     }
 
     const html = await response.text();
+    if (html.length > MAX_RESPONSE_BYTES) {
+      return res.status(400).json({ error: 'The page is too large to process.' });
+    }
 
     // Extract team info from static HTML
     const $ = cheerio.load(html);
@@ -516,20 +592,17 @@ export default async function handler(req, res) {
     console.log(`Successfully extracted ${players.length} players`);
 
     return res.status(200).json({
-      team: {
-        name: teamName,
-        primaryColor,
-        secondaryColor,
-        rosterUrl: url
-      },
+      team: { name: teamName, primaryColor, secondaryColor, rosterUrl: url },
       roster: players
     });
 
   } catch (error) {
+    // Log internally but don't expose error.message to the client —
+    // it can contain internal paths, IP addresses, or binary paths.
     console.error('Scraping error:', error);
     return res.status(500).json({
-      error: `Failed to scrape roster: ${error.message}`,
-      suggestion: 'The site may block automated requests or use JavaScript rendering. Try using the manual import option.'
+      error: 'Failed to scrape roster. The site may block automated requests or require JavaScript rendering.',
+      suggestion: 'Try using the manual import option instead.'
     });
   }
 }
