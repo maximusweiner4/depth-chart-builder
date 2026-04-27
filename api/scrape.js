@@ -151,43 +151,88 @@ function extractFromNuxtData(html) {
 
   if (!Array.isArray(arr) || arr.length > 100000) return [];
 
+  // ── Structure 1: older Sidearm (key "roster-N-players-list-page-X") ──────────
   const keyDict = arr.find(x =>
     x && typeof x === 'object' && !Array.isArray(x) &&
     Object.keys(x).some(k => k.startsWith('roster-') && k.includes('players-list'))
   );
-  if (!keyDict) return [];
+  if (keyDict) {
+    const playersKey = Object.keys(keyDict).find(k => k.includes('players-list'));
+    const listObj = resolveNuxt(arr, keyDict[playersKey], 0, new Set());
+    if (Array.isArray(listObj?.players) && listObj.players.length > 0) {
+      const out = listObj.players
+        .map(ref => {
+          const p = resolveNuxt(arr, ref, 0, new Set());
+          const player = p.player || {};
+          const pos = p.player_position || {};
+          const cls = p.class_level || {};
+          const first = player.first_name || '';
+          const last = player.last_name || '';
+          const name = `${first} ${last}`.trim();
+          if (!name) return null;
+          const number = p.jersey_number || 0;
+          const hFt = p.height_feet || player.height_feet || '';
+          const hIn = p.height_inches || player.height_inches || '';
+          return {
+            name,
+            number,
+            position: normalizePosition(pos.abbreviation || ''),
+            year: normalizeYear(cls.name || ''),
+            height: (hFt && hIn) ? `${hFt}-${hIn}` : '',
+            weight: (p.weight || player.weight) ? `${p.weight || player.weight} lbs` : '',
+            hometown: player.hometown || '',
+            highSchool: player.high_school || '',
+            previousSchool: player.previous_school || '',
+            url: player.slug ? `/sports/football/roster/player/${player.slug}` : ''
+          };
+        })
+        .filter(Boolean);
+      if (out.length > 0) return out;
+    }
+  }
 
-  const playersKey = Object.keys(keyDict).find(k => k.includes('players-list'));
-  const listObj = resolveNuxt(arr, keyDict[playersKey], 0, new Set());
-  if (!Array.isArray(listObj?.players) || listObj.players.length === 0) return [];
+  // ── Structure 2: newer Sidearm (rosterPlayers + roster keys) ─────────────────
+  // Texas Tech, etc. — player fields use camelCase: jerseyNumber, firstName, etc.
+  const modernDict = arr.find(x =>
+    x && typeof x === 'object' && !Array.isArray(x) &&
+    'rosterPlayers' in x && 'roster' in x
+  );
+  if (modernDict && Number.isInteger(modernDict.roster)) {
+    const seasonMapRaw = arr[modernDict.roster];
+    if (seasonMapRaw && typeof seasonMapRaw === 'object' && !Array.isArray(seasonMapRaw)) {
+      for (const seasonId of Object.keys(seasonMapRaw)) {
+        const rosterEntryRef = seasonMapRaw[seasonId];
+        if (!Number.isInteger(rosterEntryRef)) continue;
+        const rosterEntryRaw = arr[rosterEntryRef];
+        if (!rosterEntryRaw || !Number.isInteger(rosterEntryRaw.players)) continue;
+        const players = resolveNuxt(arr, rosterEntryRaw.players, 0, new Set());
+        if (!Array.isArray(players) || players.length === 0) continue;
+        const out = [];
+        for (const p of players) {
+          if (!p || typeof p !== 'object') continue;
+          const name = `${p.firstName || ''} ${p.lastName || ''}`.trim();
+          if (!name) continue;
+          const hFt = p.heightFeet ?? '';
+          const hIn = p.heightInches ?? '';
+          out.push({
+            name,
+            number: typeof p.jerseyNumber === 'number' ? p.jerseyNumber : (parseInt(p.jerseyNumber) || 0),
+            position: normalizePosition((p.positionShort || '').toString()),
+            year: normalizeYear((p.academicYearShort || p.academicYearLong || '').toString()),
+            height: (hFt !== '' && hFt !== null && hIn !== '' && hIn !== null) ? `${hFt}-${hIn}` : '',
+            weight: p.weight ? `${p.weight} lbs` : '',
+            hometown: p.hometown || '',
+            highSchool: p.highSchool || '',
+            previousSchool: p.previousSchool || '',
+            url: p.call_to_action || ''
+          });
+        }
+        if (out.length > 0) return out;
+      }
+    }
+  }
 
-  return listObj.players
-    .map(ref => {
-      const p = resolveNuxt(arr, ref, 0, new Set());
-      const player = p.player || {};
-      const pos = p.player_position || {};
-      const cls = p.class_level || {};
-      const first = player.first_name || '';
-      const last = player.last_name || '';
-      const name = `${first} ${last}`.trim();
-      if (!name) return null;
-      const number = p.jersey_number || 0;
-      const hFt = p.height_feet || player.height_feet || '';
-      const hIn = p.height_inches || player.height_inches || '';
-      return {
-        name,
-        number,
-        position: normalizePosition(pos.abbreviation || ''),
-        year: normalizeYear(cls.name || ''),
-        height: (hFt && hIn) ? `${hFt}-${hIn}` : '',
-        weight: (p.weight || player.weight) ? `${p.weight || player.weight} lbs` : '',
-        hometown: player.hometown || '',
-        highSchool: player.high_school || '',
-        previousSchool: player.previous_school || '',
-        url: player.slug ? `/sports/football/roster/player/${player.slug}` : ''
-      };
-    })
-    .filter(Boolean);
+  return [];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
