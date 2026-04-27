@@ -138,7 +138,7 @@ function resolveNuxt(arr, v, depth, seen) {
   return result;
 }
 
-function extractFromNuxtData(html) {
+function extractFromNuxtData(html, baseUrl = '') {
   const match = html.match(/<script[^>]+id="__NUXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
   if (!match) return [];
 
@@ -183,7 +183,7 @@ function extractFromNuxtData(html) {
             hometown: player.hometown || '',
             highSchool: player.high_school || '',
             previousSchool: player.previous_school || '',
-            url: player.slug ? `/sports/football/roster/player/${player.slug}` : ''
+            url: player.slug ? `${baseUrl}/sports/football/roster/player/${player.slug}` : ''
           };
         })
         .filter(Boolean);
@@ -224,7 +224,7 @@ function extractFromNuxtData(html) {
             hometown: p.hometown || '',
             highSchool: p.highSchool || '',
             previousSchool: p.previousSchool || '',
-            url: p.call_to_action || ''
+            url: p.call_to_action ? (p.call_to_action.startsWith('http') ? p.call_to_action : baseUrl + p.call_to_action) : ''
           });
         }
         if (out.length > 0) return out;
@@ -595,7 +595,7 @@ export default async function handler(req, res) {
     }
 
     // ── Method 1: __NUXT_DATA__ (Sidearm/Nuxt — most D1 schools) ──
-    let players = extractFromNuxtData(html);
+    let players = extractFromNuxtData(html, baseUrl);
     if (players.length > 0) {
       console.log(`Method 1 (__NUXT_DATA__): extracted ${players.length} players`);
     }
@@ -613,7 +613,7 @@ export default async function handler(req, res) {
       console.log('Static extraction failed — launching Puppeteer');
       try {
         const renderedHtml = await extractWithPuppeteer(url);
-        players = extractFromNuxtData(renderedHtml);
+        players = extractFromNuxtData(renderedHtml, baseUrl);
         if (players.length > 0) {
           console.log(`Method 4 (Puppeteer + __NUXT_DATA__): extracted ${players.length} players`);
         } else {
