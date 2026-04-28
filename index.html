@@ -3305,7 +3305,7 @@
 
         return `
           <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 modal-scroll" role="dialog" aria-modal="true" aria-label="Player selection" onclick="if(event.target === this) { app.showPlayerModal = false; app.selectedSlot = null; app.searchQuery = ''; app.render(); }">
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col">
               <div class="p-4 border-b dark:border-gray-700 flex items-center justify-between " style="background: ${this.accentColor}; color: ${this.accentTextColor};">
                 <div>
                   <h2 class="font-display text-xl font-bold">${posInfo?.fullName || position}</h2>
@@ -3323,7 +3323,7 @@
                 </div>
               </div>
 
-              <div id="playerListContainer" class="p-4 overflow-y-auto flex-1 max-h-80">
+              <div id="playerListContainer" class="px-4 py-2 overflow-y-auto flex-1 max-h-[32rem]">
                 <!-- Position Battle Toggle -->
                 <div class="mb-4 flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border dark:border-gray-600">
                   <div>
@@ -3406,26 +3406,24 @@
       renderPlayerListContent(position, depth, availablePlayers, currentPlayer) {
         if (availablePlayers.length === 0) return this.renderEmptyPlayerState(position);
         return `
-          <div class="space-y-2">
+          <div>
             ${availablePlayers.map((player, i) => `
               <button
                 onclick="app.addPlayer('${position}', ${depth}, ${safeJsonAttr({name: player.name, number: player.number, position: player.position, year: player.year, height: player.height, weight: player.weight, hometown: player.hometown, highSchool: player.highSchool, previousSchool: player.previousSchool, url: player.url})})"
-                class="w-full text-left ${player.isAssigned ? 'bg-gray-100 dark:bg-gray-800 opacity-60' : 'bg-gray-50 dark:bg-gray-700'} hover:bg-gray-100 dark:hover:bg-gray-600 hover:opacity-100 border border-gray-200 dark:border-gray-600 rounded-lg p-3 transition-all"
+                class="w-full text-left flex items-center gap-3 py-3 border-b border-gray-100 dark:border-gray-700 last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${player.isAssigned ? 'opacity-50' : ''}"
               >
-                <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 ${player.isAssigned ? 'bg-gray-300 dark:bg-gray-700' : 'bg-gray-200 dark:bg-gray-600'} rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 text-sm font-semibold">
-                    ${escapeHtml(this.getPlayerInitials(player.name))}
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <div class="font-semibold truncate max-w-full ${player.isAssigned ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white'}">#${escapeHtml(player.number)} ${escapeHtml(player.name)}</div>
-                    <div class="text-sm text-gray-500 dark:text-gray-400">${escapeHtml(player.position)} • ${escapeHtml(player.year)}${player.height ? ` • ${escapeHtml(player.height)}` : ''}${player.weight ? ` • ${escapeHtml(player.weight)}` : ''}</div>
-                    ${player.isAssigned ? `<div class="text-xs text-amber-600 dark:text-amber-400 mt-1">Currently: ${escapeHtml(player.assignments.map(a => this.getSlotDisplayName(a.position) + ' #' + (a.depth + 1)).join(', '))}</div>` : ''}
-                    ${!player.isAssigned && player.hometown ? `<div class="text-xs text-gray-400 dark:text-gray-500">${escapeHtml(player.hometown)}${player.previousSchool ? ` (${escapeHtml(player.previousSchool)})` : ''}</div>` : ''}
-                  </div>
-                  ${player.url ? `<a href="${safeUrl(player.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" class="p-1 text-gray-400 hover:text-gray-600" title="View profile">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                  </a>` : ''}
+                <div class="w-10 h-10 flex-shrink-0 bg-gray-200 dark:bg-gray-600 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 text-sm font-semibold">
+                  ${escapeHtml(this.getPlayerInitials(player.name))}
                 </div>
+                <div class="flex-1 min-w-0">
+                  <div class="font-semibold text-[15px] truncate ${player.isAssigned ? 'text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-white'}">#${escapeHtml(player.number)} ${escapeHtml(player.name)}</div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${escapeHtml(player.position)} • ${escapeHtml(player.year)}${player.height ? ` • ${escapeHtml(player.height)}` : ''}${player.weight ? ` • ${escapeHtml(player.weight)}` : ''}</div>
+                  ${player.hometown ? `<div class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">${escapeHtml(player.hometown)}${player.previousSchool ? ` (${escapeHtml(player.previousSchool)})` : ''}</div>` : ''}
+                  ${player.isAssigned ? `<div class="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Currently: ${escapeHtml(player.assignments.map(a => this.getSlotDisplayName(a.position) + ' #' + (a.depth + 1)).join(', '))}</div>` : ''}
+                </div>
+                ${player.url ? `<a href="${safeUrl(player.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" class="flex-shrink-0 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" title="View profile">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </a>` : ''}
               </button>
             `).join('')}
           </div>
