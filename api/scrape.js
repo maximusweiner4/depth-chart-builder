@@ -277,6 +277,26 @@ function extractFromHtml(html, baseUrl) {
       const cells = $(row).find('td');
       if (cells.length < 3) return;
 
+      // If headers gave us a clean column map, use it directly (handles full-word positions like "Wide Receiver")
+      if (colMap.name >= 0 && colMap.position >= 0) {
+        const nameCell = cells.eq(colMap.name);
+        const name = nameCell.text().trim().split('\n')[0].replace(/\s*(Twitter|Instagram|Facebook|Opens in|X Opens|Inflcr).*$/i, '').trim();
+        if (!name || name.length < 2 || name.toLowerCase() === 'name' || name.toLowerCase() === 'player') return;
+        const link = nameCell.find('a').attr('href') || '';
+        const playerUrl = link ? (link.startsWith('http') ? link : baseUrl + link) : '';
+        const numberText = colMap.number >= 0 ? cells.eq(colMap.number).text().trim() : '';
+        const position = cells.eq(colMap.position).text().trim();
+        const year = colMap.year >= 0 ? cells.eq(colMap.year).text().trim() : '';
+        const height = colMap.height >= 0 ? cells.eq(colMap.height).text().trim() : '';
+        const weight = colMap.weight >= 0 ? cells.eq(colMap.weight).text().trim() : '';
+        const hometown = colMap.hometown >= 0 ? cells.eq(colMap.hometown).text().trim() : '';
+        const highSchool = colMap.highSchool >= 0 ? cells.eq(colMap.highSchool).text().trim() : '';
+        const previousSchool = colMap.previousSchool >= 0 ? cells.eq(colMap.previousSchool).text().trim() : '';
+        players.push({ name, number: parseInt(numberText) || 0, position: normalizePosition(position), year: normalizeYear(year), height, weight, hometown, highSchool, previousSchool, url: playerUrl });
+        return;
+      }
+
+
       const getCellLink = (idx) => {
         if (idx < 0 || idx >= cells.length) return '';
         const link = cells.eq(idx).find('a').attr('href');
@@ -482,6 +502,8 @@ const MAX_URL_LENGTH = 2048;
 export default async function handler(req, res) {
   const allowedOrigins = [
     'https://depth-chart-builder.vercel.app',
+    'https://www.cfbdepthchart.com',
+    'https://cfbdepthchart.com',
     'http://localhost:3000',
     'http://127.0.0.1:3000'
   ];
