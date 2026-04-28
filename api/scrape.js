@@ -498,6 +498,17 @@ async function extractWithPuppeteer(url) {
     // networkidle0 hangs indefinitely on pages with analytics pings.
     // 20s leaves a 40s buffer before Vercel's 60s maxDuration.
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    // Wait up to 10s for roster content to render (CSR pages like UAB fetch
+    // roster data via API after DOMContentLoaded — without waiting, page.content()
+    // captures the page before player data is present)
+    try {
+      await page.waitForSelector(
+        'table tbody tr, .s-person-card, .roster-player, [class*="rosterPlayer"]',
+        { timeout: 10000 }
+      );
+    } catch {
+      // Selector never appeared — capture anyway and let extractors try
+    }
     return await page.content();
   } finally {
     await browser.close();
