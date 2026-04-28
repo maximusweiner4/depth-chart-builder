@@ -110,6 +110,18 @@ function normalizeColor(color) {
   return null;
 }
 
+// Returns relative luminance (0=black, 1=white) for a hex color
+function hexLuminance(hex) {
+  const full = hex.length === 4
+    ? '#' + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3]
+    : hex;
+  const r = parseInt(full.slice(1, 3), 16) / 255;
+  const g = parseInt(full.slice(3, 5), 16) / 255;
+  const b = parseInt(full.slice(5, 7), 16) / 255;
+  const toLinear = c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Method 1: __NUXT_DATA__ extraction (Sidearm/Nuxt platform — most D1 schools)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -614,7 +626,9 @@ export default async function handler(req, res) {
 
     const themeColor = $('meta[name="theme-color"]').attr('content');
     const normalizedColor = normalizeColor(themeColor);
-    if (normalizedColor) {
+    // Reject colors that are too light (luminance > 0.4) — e.g. #ffffff from LSU
+    // These make text unreadable and are rarely the school's actual brand color
+    if (normalizedColor && hexLuminance(normalizedColor) <= 0.4) {
       primaryColor = normalizedColor;
     }
 
