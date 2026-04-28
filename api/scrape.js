@@ -455,6 +455,7 @@ async function extractWithPuppeteer(url) {
     defaultViewport: chromium.defaultViewport,
     executablePath,
     headless: chromium.headless,
+    timeout: 30000,
   });
 
   try {
@@ -612,6 +613,12 @@ export default async function handler(req, res) {
     if (players.length === 0) {
       console.log('Static extraction failed — launching Puppeteer');
       try {
+        // Re-validate URL before passing to Puppeteer to prevent SSRF via
+        // meta-refresh or JS redirects that bypass the fetch-level redirect check
+        const puppeteerCheck = validateUrl(url);
+        if (!puppeteerCheck.valid) {
+          throw new Error('URL failed SSRF check before Puppeteer launch');
+        }
         const renderedHtml = await extractWithPuppeteer(url);
         players = extractFromNuxtData(renderedHtml, baseUrl);
         if (players.length > 0) {

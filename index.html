@@ -696,6 +696,9 @@
         // Setup import tab state
         this.setupImportTab = 'url';
 
+        // Import modal tab state (url | manual)
+        this.importTab = 'url';
+
         // Touch/swipe tracking for mobile tab switching
         this.touchStartX = 0;
         this.touchStartY = 0;
@@ -2560,6 +2563,8 @@
       }
 
       async fetchRosterFromUrl() {
+        if (this.fetchingRoster) return;
+
         const urlInput = document.getElementById('rosterUrlInput');
         const url = urlInput?.value?.trim();
 
@@ -2598,7 +2603,12 @@
           });
           clearTimeout(timeout);
 
-          const data = await response.json();
+          let data;
+          try {
+            data = await response.json();
+          } catch (parseErr) {
+            throw new Error('Server returned an invalid response. Try again or use Manual Entry.');
+          }
 
           if (!response.ok) {
             throw new Error(data.error || 'Failed to fetch roster');
@@ -3555,24 +3565,65 @@
       }
 
       renderImportModal() {
+        const tab = this.importTab || 'url';
         return `
           <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 modal-scroll" role="dialog" aria-modal="true" aria-label="Import roster" onclick="if(event.target === this) { app.showImportModal = false; app.importText = ''; app.importMessage = ''; app.render(); }">
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-              <div class="p-4 border-b dark:border-gray-700 flex items-center justify-between " style="background: ${this.accentColor}; color: ${this.accentTextColor};">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+              <div class="p-4 border-b dark:border-gray-700 flex items-center justify-between" style="background: ${this.accentColor}; color: ${this.accentTextColor};">
                 <h2 class="font-display text-xl font-bold">Import Roster</h2>
                 <button onclick="app.showImportModal = false; app.importText = ''; app.importMessage = ''; app.render()" class="text-white/80 hover:text-white" aria-label="Close import modal">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </div>
 
-              <div class="p-4 overflow-y-auto flex-1">
-                <div class="mb-4">
-                  <p class="text-sm text-gray-700 dark:text-gray-300 mb-2">Paste roster data below. Each line should contain:</p>
-                  <div class="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg text-sm font-mono text-gray-800 dark:text-gray-200 mb-2">#19 Jack Lambert QB RJr</div>
-                  <p class="text-xs text-gray-500 dark:text-gray-400">Format: #Number Name Position Year (or commas)</p>
-                </div>
+              <!-- Tabs -->
+              <div class="flex border-b dark:border-gray-700 bg-white dark:bg-gray-800">
+                <button onclick="app.importTab = 'url'; app.importMessage = ''; app.render()" class="flex-1 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${tab === 'url' ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 border-transparent'}" style="${tab === 'url' ? `border-color: ${this.accentColor};` : ''}">
+                  🔗 From URL
+                </button>
+                <button onclick="app.importTab = 'manual'; app.importMessage = ''; app.render()" class="flex-1 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${tab === 'manual' ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 border-transparent'}" style="${tab === 'manual' ? `border-color: ${this.accentColor};` : ''}">
+                  📝 Manual Entry
+                </button>
+              </div>
 
-                <textarea id="importTextarea" placeholder="Paste roster data here…" class="w-full h-64 p-3 border-2 border-gray-200 dark:border-gray-600 rounded-lg font-mono text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">${escapeHtml(this.importText)}</textarea>
+              <div class="p-4 overflow-y-auto flex-1">
+                ${tab === 'url' ? `
+                  <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    Enter your team's roster page URL (works with most Sidearm Sports college athletics sites).
+                  </p>
+                  <input
+                    type="url"
+                    id="rosterUrlInput"
+                    name="rosterUrl"
+                    autocomplete="url"
+                    aria-label="Roster page URL"
+                    placeholder="https://ohiostatebuckeyes.com/sports/football/roster"
+                    class="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus-visible:ring-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white mb-4"
+                    value="${escapeHtml(this.team.rosterUrl || '')}"
+                  />
+                  <button
+                    onclick="app.fetchRosterFromUrl()"
+                    class="w-full py-3 rounded-lg font-display font-semibold text-white transition-colors flex items-center justify-center gap-2 ${this.fetchingRoster ? 'opacity-70 cursor-not-allowed' : ''}"
+                    style="background: ${this.accentColor};"
+                    ${this.fetchingRoster ? 'disabled' : ''}
+                  >
+                    ${this.fetchingRoster ? `
+                      <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                      Fetching Roster… (may take ~30s)
+                    ` : `
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
+                      Fetch Roster
+                    `}
+                  </button>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-3 text-center">If import fails, switch to Manual Entry.</p>
+                ` : `
+                  <div class="mb-4">
+                    <p class="text-sm text-gray-700 dark:text-gray-300 mb-2">Paste roster data below. Each line should contain:</p>
+                    <div class="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg text-sm font-mono text-gray-800 dark:text-gray-200 mb-2">#19 Jack Lambert QB RJr</div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Format: #Number Name Position Year (or commas)</p>
+                  </div>
+                  <textarea id="importTextarea" placeholder="Paste roster data here…" class="w-full h-48 p-3 border-2 border-gray-200 dark:border-gray-600 rounded-lg font-mono text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">${escapeHtml(this.importText)}</textarea>
+                `}
 
                 ${this.importMessage ? `
                   <div class="mt-3 p-3 rounded-lg ${this.importMessage.includes('Success') ? 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300'}">
@@ -3581,14 +3632,22 @@
                 ` : ''}
               </div>
 
-              <div class="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex gap-3">
-                <button onclick="app.importRoster()" class="flex-1 px-4 py-3 rounded-lg font-display font-semibold" style="background: ${this.accentColor}; color: ${this.accentTextColor};">
-                  Import Roster
-                </button>
-                <button onclick="app.showImportModal = false; app.importText = ''; app.importMessage = ''; app.render()" class="px-4 py-3 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white rounded-lg font-semibold">
-                  Cancel
-                </button>
-              </div>
+              ${tab === 'manual' ? `
+                <div class="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex gap-3">
+                  <button onclick="app.importRoster()" class="flex-1 px-4 py-3 rounded-lg font-display font-semibold" style="background: ${this.accentColor}; color: ${this.accentTextColor};">
+                    Import Roster
+                  </button>
+                  <button onclick="app.showImportModal = false; app.importText = ''; app.importMessage = ''; app.render()" class="px-4 py-3 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white rounded-lg font-semibold">
+                    Cancel
+                  </button>
+                </div>
+              ` : `
+                <div class="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                  <button onclick="app.showImportModal = false; app.importText = ''; app.importMessage = ''; app.render()" class="w-full px-4 py-3 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white rounded-lg font-semibold">
+                    Cancel
+                  </button>
+                </div>
+              `}
             </div>
           </div>
         `;
