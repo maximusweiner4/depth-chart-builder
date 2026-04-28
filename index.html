@@ -955,7 +955,12 @@
             positionBattles: this.positionBattles,
             team: this.team
           }));
-          const state = JSON.parse(this.undoStack.pop());
+          const raw = this.undoStack.pop();
+          let state;
+          try { state = JSON.parse(raw); } catch (e) {
+            this.showToast('Undo failed — history entry was corrupted.');
+            return;
+          }
           this.depthChart = state.depthChart || state;
           if (state.playerStatuses) this.playerStatuses = state.playerStatuses;
           if (state.playerNotes) this.playerNotes = state.playerNotes;
@@ -978,7 +983,12 @@
             positionBattles: this.positionBattles,
             team: this.team
           }));
-          const state = JSON.parse(this.redoStack.pop());
+          const raw = this.redoStack.pop();
+          let state;
+          try { state = JSON.parse(raw); } catch (e) {
+            this.showToast('Redo failed — history entry was corrupted.');
+            return;
+          }
           this.depthChart = state.depthChart || state;
           if (state.playerStatuses) this.playerStatuses = state.playerStatuses;
           if (state.playerNotes) this.playerNotes = state.playerNotes;
@@ -993,12 +1003,24 @@
       }
 
       autoSave() {
+        // Serialize all values before writing to avoid partial state if quota is hit mid-write
+        let serialized;
         try {
-          localStorage.setItem('generic-depth-chart', JSON.stringify(this.depthChart));
-          localStorage.setItem('generic-player-statuses', JSON.stringify(this.playerStatuses));
-          localStorage.setItem('generic-player-notes', JSON.stringify(this.playerNotes));
-          localStorage.setItem('generic-position-battles', JSON.stringify(this.positionBattles));
-          localStorage.setItem('generic-two-deep-view', JSON.stringify(this.twoDeepView));
+          serialized = [
+            ['generic-depth-chart', JSON.stringify(this.depthChart)],
+            ['generic-player-statuses', JSON.stringify(this.playerStatuses)],
+            ['generic-player-notes', JSON.stringify(this.playerNotes)],
+            ['generic-position-battles', JSON.stringify(this.positionBattles)],
+            ['generic-two-deep-view', JSON.stringify(this.twoDeepView)],
+          ];
+        } catch (e) {
+          console.error('Auto-save serialization failed:', e);
+          return;
+        }
+        try {
+          for (const [key, value] of serialized) {
+            localStorage.setItem(key, value);
+          }
         } catch (e) {
           console.error('Auto-save failed:', e);
           if (e.name === 'QuotaExceededError' || e.code === 22) {
@@ -1120,6 +1142,19 @@
                   'generic-roster', 'generic-dark-mode', 'depth-chart-offense-formation',
                   'depth-chart-defense-formation'
                 ];
+                // Validate all values are valid JSON strings before writing anything
+                for (const key of backupKeys) {
+                  if (data[key] !== undefined) {
+                    if (typeof data[key] !== 'string') {
+                      this.showToast('Backup file is corrupted — invalid data for ' + key);
+                      return;
+                    }
+                    try { JSON.parse(data[key]); } catch (e) {
+                      this.showToast('Backup file is corrupted — could not parse data for ' + key);
+                      return;
+                    }
+                  }
+                }
                 backupKeys.forEach(key => {
                   if (data[key] !== undefined) {
                     localStorage.setItem(key, data[key]);
@@ -1218,11 +1253,11 @@
           return false;
         }
 
-        if (compressed.length > 512000) { console.warn('Share URL too large'); return false; }
+        if (compressed.length > 51200) { console.warn('Share URL too large'); return false; }
         try {
           let json;
           try { json = LZString.decompressFromEncodedURIComponent(compressed); } catch { return false; }
-          if (!json || json.length > 2000000) { console.warn('Share URL decompressed too large or failed'); return false; }
+          if (!json || json.length > 512000) { console.warn('Share URL decompressed too large or failed'); return false; }
           let data;
           try { data = JSON.parse(json); } catch { return false; }
 
@@ -1240,7 +1275,7 @@
             for (const [posKey, slots] of Object.entries(data.d || {})) {
               dc[posKey] = [];
               for (let i = 0; i < slots.length; i++) {
-                if (slots[i]) {
+                if (slots[i] && Array.isArray(slots[i])) {
                   dc[posKey][i] = { number: String(slots[i][0] || ''), name: String(slots[i][1] || ''), year: String(slots[i][2] || ''), position: '', height: '', weight: '', hometown: '', highSchool: '', previousSchool: '', url: '' };
                 } else {
                   dc[posKey][i] = null;
