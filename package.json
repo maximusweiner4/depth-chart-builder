@@ -7,8 +7,8 @@
     "node": ">=18"
   },
   "scripts": {
-    "build:css": "tailwindcss -i src/input.css -o dist/tailwind.css --minify",
-    "watch:css": "tailwindcss -i src/input.css -o dist/tailwind.css --watch",
+    "build:css": "tailwindcss -i src/input.css -o public/dist/tailwind.css --minify",
+    "watch:css": "tailwindcss -i src/input.css -o public/dist/tailwind.css --watch",
     "build": "npm run build:css"
   },
   "dependencies": {

@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import dns from 'node:dns/promises';
 
 // NOTE: Rate limiter uses in-memory Map — resets per cold start.
 // On Vercel's multi-instance deployment each instance has its own Map, so the
@@ -90,6 +91,25 @@ function validateUrl(urlString) {
   }
 
   return { valid: true };
+}
+
+// Resolve a hostname's A/AAAA records and reject if any resolve to a private/
+// reserved address. Defends against DNS-rebinding and DNS-based SSRF where a
+// public hostname points at an internal IP. Fails open on DNS errors — an
+// unresolvable host will simply fail the subsequent fetch.
+async function resolvesToBlockedIp(hostname) {
+  // Literal IPs are already covered by validateUrl(); skip lookup.
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) || hostname.includes(':')) return false;
+  try {
+    const results = await dns.lookup(hostname, { all: true });
+    for (const { address, family } of results) {
+      const probe = family === 6 ? `http://[${address}]` : `http://${address}`;
+      if (!validateUrl(probe).valid) return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
 }
 
 // Normalize theme-color to hex format
@@ -526,10 +546,12 @@ export default async function handler(req, res) {
   const allowedOrigins = [
     'https://depth-chart-builder.vercel.app',
     'https://www.cfbdepthchart.com',
-    'https://cfbdepthchart.com',
-    'http://localhost:3000',
-    'http://127.0.0.1:3000'
+    'https://cfbdepthchart.com'
   ];
+  // Allow localhost origins only outside production (local dev)
+  if (process.env.VERCEL_ENV !== 'production') {
+    allowedOrigins.push('http://localhost:3000', 'http://127.0.0.1:3000');
+  }
   const origin = req.headers.origin || '';
   if (allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
@@ -572,6 +594,11 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: urlCheck.reason });
   }
 
+  // DNS-level SSRF check: reject hostnames that resolve to private/reserved IPs
+  if (await resolvesToBlockedIp(new URL(url).hostname)) {
+    return res.status(400).json({ error: 'URL resolves to a disallowed address' });
+  }
+
   try {
     console.log(`Fetching roster from: ${url}`);
 
@@ -590,6 +617,9 @@ export default async function handler(req, res) {
     if (response.url && response.url !== url) {
       const finalCheck = validateUrl(response.url);
       if (!finalCheck.valid) {
+        return res.status(400).json({ error: 'URL redirected to a disallowed destination' });
+      }
+      if (await resolvesToBlockedIp(new URL(response.url).hostname)) {
         return res.status(400).json({ error: 'URL redirected to a disallowed destination' });
       }
     }
